@@ -5,9 +5,9 @@ These tests are intentionally minimal and avoid network access.
 
 from bs4 import BeautifulSoup
 
-from extract_bond import parse_table
+from src.james_bond.extract_bond_films import parse_table
 
-LEN_OF_ROWS = 2  # Update this if the number of rows in the table changes
+LEN_OF_ROWS = 2  # Update this if the number of rows in the test-table changes
 
 
 def test_parse_table_minimal() -> None:
