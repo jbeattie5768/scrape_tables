@@ -1,0 +1,28 @@
+[project]
+name = "james-bond"
+version = "0.1.0"
+description = "Extract James Bond Film Data from Wikipedia Tables"
+readme = "README.md"
+authors = [
+    { name = "jbeattie5768", email = "jbeattie5768@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.14.2",
+    "requests>=2.32.5",
+]
+
+[project.scripts]
+james-bond = "james_bond.extract_bond_films:main"
+james_bond = "james_bond.extract_bond_films:main"
+
+[build-system]
+requires = ["uv_build>=0.9.7,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+]
