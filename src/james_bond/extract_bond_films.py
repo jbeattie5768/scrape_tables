@@ -21,9 +21,13 @@ import logging
 import re
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import requests
 from bs4 import BeautifulSoup, Tag
+
+if TYPE_CHECKING:
+    from bs4.element import AttributeValueList
 
 URL = "https://en.wikipedia.org/wiki/List_of_James_Bond_films"
 HEADERS = {"User-Agent": "bond-table-extractor/1.0 (https://example.com)"}
@@ -91,9 +95,10 @@ def extract_raw_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]]:
         if not cells:
             continue
         img = tr.find("img")
-        poster_url = None
+        poster_url = ""  # None
         if img and img.has_attr("src"):
             src = img["src"]
+            src = cast("str", src)  # we now know it's a str
             if src.startswith("//"):
                 poster_url = "https:" + src
             elif src.startswith("/"):
@@ -120,13 +125,14 @@ def extract_raw_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]]:
     return raw_rows
 
 
-def _extract_infobox_poster(infobox: Tag) -> str | None:
+def _extract_infobox_poster(infobox: Tag | None) -> str | None:
     if not infobox:
         return None
     img = infobox.find("img")
     if not (img and img.has_attr("src")):
         return None
     src = img["src"]
+    src = cast("str", src)  # we now know it's a str
     if src.startswith("//"):
         return "https:" + src
     if src.startswith("/"):
@@ -155,7 +161,8 @@ def fetch_posters(rows: list[dict[str, str]], poster_threshold: int, delay: floa
             continue
         try:
             film_html = get_html(link)
-            infobox = film_html.find("table", class_=lambda c: c and "infobox" in c)
+            # infobox = film_html.find("table", class_=lambda c: c and "infobox" in c)
+            infobox = film_html.find("table", class_=lambda c: "infobox" in str(c))
             poster = _extract_infobox_poster(infobox)
             if poster:
                 r["poster"] = poster
@@ -207,15 +214,16 @@ def find_eon_table(soup: BeautifulSoup) -> Tag | None:
     return None
 
 
-def cell_text_and_link(cell: Tag) -> dict[str, str | None]:
+def cell_text_and_link(cell: Tag) -> dict[str, str | AttributeValueList | None]:
     """Return a dict with visible text and a fully-qualified first link (if any)."""
-    text = cell.get_text(" ", strip=True)
-    a = cell.find("a", href=True)
-    href: str | None = None
+    text: str = cell.get_text(" ", strip=True)
+    a: Tag | None = cell.find("a", href=True)
+    href: str | AttributeValueList | None = None
     if a:
         href = a.get("href")
-        if href and href.startswith("/wiki/"):
+        if isinstance(href, str) and href.startswith("/wiki/"):
             href = "https://en.wikipedia.org" + href
+
     return {"text": text, "link": href}
 
 
@@ -228,7 +236,8 @@ def parse_table(
     links to fetch missing poster images (controlled by poster_threshold),
     and drops obvious header/summary rows before returning a list of dicts.
     """
-    first_tr = tbl.find("tr")
+    first_tr: Tag | None = tbl.find("tr")
+    first_tr = cast("Tag", first_tr)  # we now know it's a Tag
     hdr_map = map_headers(first_tr)
     logger.info("Table headers mapping: %s", hdr_map)
     raw_rows = extract_raw_rows(tbl, hdr_map)
@@ -274,15 +283,15 @@ def write_csv(rows: list[dict[str, str]], path: str) -> None:
 
 def main():
     """CLI entrypoint that runs the extractor and writes JSON/CSV as requested."""
-    parser = argparse.ArgumentParser(description="Extract James Bond Eon-Films from Wikipedia")
+    parser = argparse.ArgumentParser(description="Extract James Bond Films Table from Wikipedia")
     parser.add_argument(
-        "-v", "--verbose", action="count", default=0, help="logging verbosity: none=WARNING, -v=INFO, -vv=DEBUG"
+        "-v", "--verbose", action="count", default=0, help="Logging verbosity: none=WARNING, -v=INFO, -vv=DEBUG"
     )
-    parser.add_argument("--threshold", type=int, default=4, help="max missing posters to follow links")
-    parser.add_argument("--skip-posters", action="store_true", help="skip following title links to fetch posters")
-    parser.add_argument("--delay", type=float, default=0.0, help="delay in seconds between poster page requests")
-    parser.add_argument("-o", "--output", default=r"eon_films.json", help="output JSON path")
-    parser.add_argument("--csv", help="optional CSV output path")
+    parser.add_argument("--threshold", type=int, default=4, help="Maximum missing posters to follow links")
+    parser.add_argument("--skip-posters", action="store_true", help="Skip following title links to fetch posters")
+    parser.add_argument("--delay", type=float, default=0.0, help="Delay in seconds between poster page requests")
+    parser.add_argument("-o", "--output", default=r".\\data\\james_bond_films.json", help="Output JSON path")
+    parser.add_argument("--csv", help="Optional CSV output path")
     args = parser.parse_args()
 
     # adjust logging level
@@ -294,8 +303,8 @@ def main():
         level = logging.WARNING
     logging.getLogger().setLevel(level)
 
-    html = get_html(URL)
-    tbl = find_eon_table(html)
+    soup_obj = get_html(URL)
+    tbl = find_eon_table(soup_obj)
     if not tbl:
         logger.error("Eon films table not found.")
         return
