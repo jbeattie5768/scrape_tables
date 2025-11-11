@@ -27,7 +27,7 @@ See `requirements.txt`. Install with:
 pip install -r requirements.txt
 ```
 
----
+______________________________________________________________________
 
 `uv run --with requests --with beautifulsoup4 python "w:\extract_bond.py" -v --threshold 0 -o "w:\eon_films.json"`
 
@@ -47,8 +47,30 @@ pip install -r requirements.txt
 
 `uv run james-bond --skip-posters -o .\data\eon_films.json`
 
----
+______________________________________________________________________
+
+## Generate James Bond Films
+
+uv run james-bond -t "Eon films" --skip-posters -o .\data\eon_films.json
 
 ## Generate Timeline
 
 `uv run python ./src/parse_timeline_json.py -j w:\eon_films.json -d bond_films -t ./data/bond_timeline_template.html -o bond_timeline.html`
+
+### Pre-Commit
+
+`pre-commit run`
+`uv run pre-commit run`
+
+## Type-Checking
+
+- Pyright via Pylance and `python.analysis.typeCheckingMode": "standard"`
+- MyPy `uv run pre-commit run`
+
+## PyTest
+
+- `uv run python -m pytest -v`
+
+## Websites
+
+<https://github.com/Sateesh110/Rep_Medium/blob/master/A1_WikiTables_Scraping/A1_WikiTable_WorldPopulation.ipynb>
