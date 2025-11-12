@@ -1,0 +1,47 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+
+        {
+            "name": "Python: Run extract_bond_films - no posters",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/james_bond/extract_bond_films.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-u",
+                "https://en.wikipedia.org/wiki/List_of_James_Bond_films",
+                "-t",
+                "Eon films",
+                "--skip-posters",
+                "--json",
+                "${workspaceFolder}\\data\\eon_films.json",
+                "--csv",
+                "${workspaceFolder}\\data\\eon_films.csv",
+                "-vv"
+            ]
+        }
+        ,
+        {
+            "name": "Python: Run extract_bond_films - with posters",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/james_bond/extract_bond_films.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-u",
+                "https://en.wikipedia.org/wiki/List_of_James_Bond_films",
+                "-t",
+                "Eon films",
+                "--delay",
+                "1",
+                "--json",
+                "${workspaceFolder}\\data\\eon_films.json",
+                "--csv",
+                "${workspaceFolder}\\data\\eon_films.csv",
+                "-vv"
+            ]
+        }
+    ]
+}

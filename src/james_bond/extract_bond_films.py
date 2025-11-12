@@ -1,10 +1,6 @@
-"""Extract the Eon films table.
+"""Extract a Wikipedia table.
 
-Extract the "Eon films" table from:
-https://en.wikipedia.org/wiki/List_of_James_Bond_films
-
-Outputs JSON to stdout and can optionally write CSV.
-Requires: requests, beautifulsoup4
+Outputs to a JSON (default) or additionally to CSV file.
 """
 
 import argparse
@@ -23,14 +19,13 @@ from bs4 import BeautifulSoup, Tag
 if TYPE_CHECKING:
     from bs4.element import AttributeValueList
 
-REQ_HEADERS = {"User-Agent": "wiki-table-extractor/0.1"}
+REQUEST_HEADERS = {"User-Agent": "wiki-table-extractor/0.1"}
 DEFAULT_URL = "https://en.wikipedia.org/wiki/List_of_James_Bond_films"
 DEFAULT_LOGGING_LEVEL = logging.INFO
-DEFAULT_POSTER_THRESHOLD = 4  # TODO@jb: #007 review if this is appropriate
 
 logging.basicConfig(level=DEFAULT_LOGGING_LEVEL, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]  # verbosity: None, -v, -vv
+log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]  # verbosity: none, -v, -vv
 
 
 def _parse_arguments(arg_list: list[str] | None) -> argparse.Namespace:
@@ -40,11 +35,12 @@ def _parse_arguments(arg_list: list[str] | None) -> argparse.Namespace:
     # All Optional: defaults for some
     parser.add_argument("-u", "--url", type=str, default=DEFAULT_URL, help="URL of the Wikipedia page to extract")
     parser.add_argument("-t", "--table", type=str, help="Name of the table to extract (case-sensitive)", required=True)
-    parser.add_argument("--threshold", type=int, default=4, help="Maximum missing posters to follow links")
     parser.add_argument("--skip-posters", action="store_true", help="Skip following title links to fetch posters")
-    parser.add_argument("--delay", type=float, default=0.0, help="Delay in seconds between poster page requests")
-    parser.add_argument("-o", "--output", default=r".\\data\\table_output.json", help="Output JSON path")
-    parser.add_argument("--csv", type=str, help="Optional CSV output path")
+    parser.add_argument("--delay", type=float, default=0.5, help="Delay in seconds between poster page requests")
+    parser.add_argument(
+        "-o", "--output", "--json", type=str, default=".\\data\\table_output.json", help="Output JSON path"
+    )
+    parser.add_argument("--csv", type=str, help="Output CSV path (optional)")
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="Logging verbosity: none=WARNING, -v=INFO, -vv=DEBUG"
     )
@@ -73,7 +69,7 @@ def save_json(data: list[dict[str, str]], path: str) -> None:
 def get_html(url: str) -> BeautifulSoup:
     """Fetch URL and return a BeautifulSoup parsed document."""
     logger.info("Fetching URL: %s", url)
-    resp = requests.get(url, headers=REQ_HEADERS, timeout=15)
+    resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
     logger.debug("HTTP response: %s", resp)
     resp.raise_for_status()  # raises HTTPError for 4xx/5xx
 
@@ -81,7 +77,7 @@ def get_html(url: str) -> BeautifulSoup:
 
 
 def map_headers(first_tr: Tag) -> dict[str, int]:
-    """Return a mapping from our target field names to column indexes."""
+    """Return a mapping from table field names to column indexes."""
 
     def clean_header(h: str) -> str:
         """Remove reference brackets from header text."""
@@ -95,111 +91,97 @@ def map_headers(first_tr: Tag) -> dict[str, int]:
     return header_map
 
 
-def extract_raw_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]]:
+def extract_table_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]]:
     """Extract rows as dictionaries from the table.
 
-    Drops rows that do not match header length in terms of cell count (they are likely header/summary
-    rows), before returning a list of row dicts.
+    Drops rows that do not match header length in terms of cell count (they are likely
+    header/summary rows), before returning a list of row dicts.
+
+    Approach: The header_map dict 'key:value' is 'names:int_index', with the value
+    corresponding to the cell index (cell order) in the row:
+    ┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐    ┌──────┐
+    │key: 0││key: 1││key: 2││key: 3││key: 4│....│key: n│
+    └──────┘└──────┘└──────┘└──────┘└──────┘    └──────┘
+    Each row in extracted_rows is a dict of that rows cell data, with a key corresponding to
+    the hdr_map keys:
+    ┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐    ┌──────┐
+    │Key 0 ││Key 1 ││Key 2 ││Key 3 ││Key 4 │....│Key n │
+    │Cell 0││Cell 1││Cell 2││Cell 3││Cell 4│    │Cell n│
+    └──────┘└──────┘└──────┘└──────┘└──────┘    └──────┘
+    We take the key from the header_map and use its value to index into the row cells.
+    Dicts are ordered as of Python 3.6+, so the order of keys is preserved if we wanted to
+    just loop over the header_map keys, incrementally matching each to the corresponding cell.
+    Instead, we loop over the header_map and use that value as the mapped row cell index
+    as well as using that key for the row key.
+
     """
-    raw_rows: list[dict[str, str]] = []
+    extracted_rows: list[dict[str, str]] = []
 
-    for tr in tbl.find_all("tr")[1:]:  # first was header
-        cells = tr.find_all(["th", "td"])
-        if not cells:
-            continue
-        # img = tr.find("img")
-        # poster_url = ""  # None
-        # if img and img.has_attr("src"):
-        #     src = img["src"]
-        #     src = cast("str", src)  # we now know it's a str
-        #     if src.startswith("//"):
-        #         poster_url = "https:" + src
-        #     elif src.startswith("/"):
-        #         poster_url = "https://en.wikipedia.org" + src
-        #     else:
-        #         poster_url = src
-
-        # def get_info(idx: int | None, _cells=cells) -> dict:
-        #     if idx is None or idx >= len(_cells):
-        #         return {"text": "", "link": None}
-        #     return cell_text_and_link(_cells[idx])
-
-        # title_info = get_info(hdr_map.get("title"))
-        # title_link_internal = title_info.get("link")
-        # row: dict = {
-        #     "title": title_info["text"],
-        #     "_title_link": title_link_internal,
-        #     "year": get_info(hdr_map.get("year"))["text"],
-        #     "bond_actor": get_info(hdr_map.get("bond_actor"))["text"],
-        #     "director": get_info(hdr_map.get("director"))["text"],
-        #     # "poster": poster_url or "",
-        # }
-
-        # Check this is a valid row, i.e. has enough cells
-        # Even a row with blank entries will have the same number of cells
-        if len(cells) < len(hdr_map):
+    for tr in tbl.find_all("tr")[1:]:  # first row was header
+        row_cells = tr.find_all(["th", "td"])
+        # Check this row has enough cells
+        if len(row_cells) < len(hdr_map):
+            # Likely a header/summary row
             logger.warning("Skipping row with insufficient cells: %s", tr.get_text(" ", strip=True))
             continue
 
-        row: dict[str, str] = {}
-        for idx, hdr_key in enumerate(hdr_map):
-            row[hdr_key] = cell_text_and_link(cells[idx])["text"]  # extract text only
-        logger.debug("Extracted Row = %s", row)
-        raw_rows.append(row)
+        # Map the current row's cells to hdr_keys and add the data
+        mapped_row: dict[str, str] = {}
+        for hdr_key, hdr_value in hdr_map.items():
+            mapped_row[hdr_key] = cell_text_and_link(row_cells[hdr_value])["text"]
+        # Add additional entries *not* in row or hdr_map ("" if no link)
+        mapped_row["_title_link"] = cell_text_and_link(row_cells[hdr_map["title"]])["link"]
 
-    logger.info("Collected %d raw rows from table (including possible header/summary rows)", len(raw_rows))
+        logger.debug("Extracted Row = %s", mapped_row)
+        extracted_rows.append(mapped_row)
 
-    return raw_rows
+    logger.info("Extracted %d rows from table (including possible unwanted rows)", len(extracted_rows))
+
+    return extracted_rows
 
 
 def _extract_infobox_poster(infobox: Tag | None) -> str | None:
+    """Extract poster URL from film page infobox."""
     if not infobox:
+        logger.warning("No infobox found")
         return None
     img = infobox.find("img")
     if not (img and img.has_attr("src")):
+        logger.warning("No image found in infobox")
         return None
-    src = img["src"]
-    src = cast("str", src)  # we now know it's a str
-    if src.startswith("//"):
+    src: str = cast("str", img["src"])  # cast for type conformity
+    if src.startswith("//"):  # unlikely to be seen
         return "https:" + src
     if src.startswith("/"):
         return "https://en.wikipedia.org" + src
     return src
 
 
-def fetch_posters(rows: list[dict[str, str]], poster_threshold: int, delay: float = 0.0) -> None:
-    """Fill missing poster URLs by following the film page infoboxes when allowed."""
-    missing = [r for r in rows if not r.get("poster")]
-    logger.info("Rows missing poster: %d", len(missing))
-    try:
-        pt = int(poster_threshold)
-    except (TypeError, ValueError):
-        pt = DEFAULT_POSTER_THRESHOLD
-    follow_links = len(missing) > 0 and (pt <= 0 or len(missing) <= pt)
-    if not follow_links:
-        logger.info("Not following title links to fetch posters (threshold=%s)", pt)
-        return
+def fetch_bond_posters(rows: list[dict[str, str]], delay: float = 0.0) -> None:
+    """Fetch poster URLs by following the film page infoboxes when allowed.
 
-    logger.info("Following title links to fetch missing posters (missing=%d)", len(missing))
-    for r in missing:
-        link = r.get("_title_link")
+    For James Bond Film Wikipedia pages, the poster is typically in the pages 'infobox'.
+    """
+    logger.info("Following title links to fetch missing posters")
+    for row in rows:
+        link = row.get("_title_link")
         if not link:
-            logger.debug("No title link for %s, skipping poster fetch", r.get("title"))
+            logger.warning("No title link for %s, skipping poster fetch", row.get("title"))
+            logger.debug("Row: %s", row)
             continue
-        try:
-            film_html = get_html(link)
-            # infobox = film_html.find("table", class_=lambda c: c and "infobox" in c)
-            infobox = film_html.find("table", class_=lambda c: "infobox" in str(c))
-            poster = _extract_infobox_poster(infobox)
-            if poster:
-                r["poster"] = poster
-                logger.info("Fetched poster for %s from %s", r.get("title"), link)
-            else:
-                logger.warning("No poster image found in infobox for %s", r.get("title"))
-        except requests.RequestException:
-            logger.exception("Network error fetching poster for %s (%s)", r.get("title"), link)
+        film_html = get_html(link)  # the films page
+        # James Bond films have the poster in the infobox
+        infobox = film_html.find("table", class_=lambda c: "infobox" in str(c))
+        poster = _extract_infobox_poster(infobox)
+        if poster:
+            row["_poster_link"] = poster
+            logger.debug("Fetched poster for %s from %s", row.get("title"), link)
+        else:
+            logger.warning("Fetch Poster failure for %s (%s)", row.get("title"), link)
+            continue
         if delay and delay > 0:
-            time.sleep(delay)
+            logger.debug("Sleeping for %.2f seconds", delay)
+            time.sleep(delay)  # avoid hammering the server
 
 
 def find_table_by_caption(soup: BeautifulSoup, table_caption: str) -> Tag | None:
@@ -210,9 +192,9 @@ def find_table_by_caption(soup: BeautifulSoup, table_caption: str) -> Tag | None
     Returns the first matching table Tag, or None if string not found.
     """
     for tbl in soup.find_all("table", class_="wikitable"):
-        caption = tbl.find("caption")  # Find the tag <caption>
+        caption = tbl.find("caption")  # the tag '<caption>'
         if caption and table_caption in caption.get_text():
-            logger.info("Found table by caption: %s", caption.get_text().strip())  # remove stray '\n'
+            logger.info("Found table by caption: %s", caption.get_text().strip())  # remove any '\n'
             return tbl
 
     # Could add fallback approaches here if needed
@@ -231,31 +213,23 @@ def cell_text_and_link(cell: Tag) -> dict[str, str]:
         if isinstance(href, str) and href.startswith("/wiki/"):
             href = "https://en.wikipedia.org" + href
 
-    return {"text": text, "link": str(href)}  # cast to str for type consistency
+    return {"text": text, "link": str(href)}  # cast for type conformity
 
 
-def parse_table(
-    tbl: Tag, poster_threshold: int = DEFAULT_POSTER_THRESHOLD, *, skip_posters: bool = False, delay: float = 0.0
-) -> list[dict[str, str]]:
+def parse_table(tbl: Tag) -> list[dict[str, str]]:
     """Parse the table and return cleaned rows.
 
-    This function maps headers, extracts raw rows.
+    This function maps headers, extracts table rows.
     Optionally follows title links to fetch poster images.
 
     """
     first_tr: Tag | None = tbl.find("tr")
-    first_tr = cast("Tag", first_tr)  # Keep type-check happy, we now know it's a Tag
+    first_tr = cast("Tag", first_tr)  # cast for type conformity
     header_map = map_headers(first_tr)
-    raw_rows = extract_raw_rows(tbl, header_map)  # Drops any non-conforming rows
+    table_rows = extract_table_rows(tbl, header_map)  # skips non-valid rows
+    logger.info("Returning %d parsed film rows", len(table_rows))
 
-    if not skip_posters:
-        fetch_posters(raw_rows, poster_threshold, delay=delay)
-    else:
-        logger.info("Skipping poster fetching as requested")
-
-    logger.info("Returning %d parsed film rows", len(raw_rows))
-
-    return raw_rows
+    return table_rows
 
 
 def save_csv(rows: list[dict[str, str]], path: str) -> None:
@@ -268,7 +242,7 @@ def save_csv(rows: list[dict[str, str]], path: str) -> None:
     else:
         logger.debug("CSV folder was created: %s", p.parents[0])
 
-    keys = rows[0].keys()  # preserve order from first row
+    keys = rows[0].keys()  # preserve order, from first row
     with p.open("w", newline="", encoding="utf-8") as fid:
         writer = csv.DictWriter(fid, fieldnames=keys)
         writer.writeheader()
@@ -292,9 +266,11 @@ def main(arg_list: list[str] | None = None) -> None:
     soup = get_html(args.url)
     tbl = find_table_by_caption(soup, args.table)
     if not tbl:
-        return  # We should be able to handle this better
-    rows = parse_table(tbl, poster_threshold=args.threshold, skip_posters=args.skip_posters, delay=args.delay)
-    save_json(rows, args.output)
+        return  # should be able to handle this better!
+    rows = parse_table(tbl)
+    if not args.skip_posters:
+        fetch_bond_posters(rows, delay=args.delay)
+    save_json(rows, args.output)  # always save JSON
     if args.csv:
         save_csv(rows, args.csv)
 

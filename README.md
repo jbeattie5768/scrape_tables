@@ -51,7 +51,7 @@ ______________________________________________________________________
 
 ## Generate James Bond Films
 
-uv run james-bond -t "Eon films" --skip-posters -o .\data\eon_films.json
+uv run james-bond -t "Eon films" --skip-posters -o .\\data\\eon_films.json
 
 ## Generate Timeline
 
@@ -64,12 +64,14 @@ uv run james-bond -t "Eon films" --skip-posters -o .\data\eon_films.json
 
 ## Type-Checking
 
-- Pyright via Pylance and `python.analysis.typeCheckingMode": "standard"`
-- MyPy `uv run pre-commit run`
+- Pyright via Pylance with settings.json entry: `python.analysis.typeCheckingMode": "standard"`
+- MyPy
+  - mypy --strict .\\src\\james_bond\\extract_bond_films.py
+  - uv run python -m mypy --strict .\\src\\james_bond\\extract_bond_films.py
 
 ## PyTest
 
-- `uv run python -m pytest -v`
+- uv run python -m pytest -v
 
 ## Websites
 
