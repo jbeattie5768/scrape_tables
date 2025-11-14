@@ -20,47 +20,55 @@ import requests
 from bs4 import BeautifulSoup, Tag
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
     from bs4.element import AttributeValueList
 
-REQUEST_HEADERS = {"User-Agent": "wiki-table-extractor/0.1"}
+# CONSTANTS
 DEFAULT_URL = "https://en.wikipedia.org/wiki/List_of_James_Bond_films"
 DEFAULT_TABLE_CLASS = "wikitable"  # as used by soup.find_all(table, class_=...)
 DEFAULT_LOGGING_FORMAT = "%(asctime)s %(levelname)s: %(message)s"
+DEFAULT_REQUEST_HEADERS = {"User-Agent": "wiki-table-extractor/0.1"}
 
 logger = logging.getLogger(__name__)
 
 
-def _parse_arguments(arg_list: list[str] | None) -> argparse.Namespace:
+def parse_arguments(arg_list: list[str] | None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Extract Table from Wikipedia")
 
-    # All Optional: defaults for some
     parser.add_argument("-u", "--url", type=str, default=DEFAULT_URL, help="URL of the HTML page to get")
     parser.add_argument(
         "-t", "--table", type=str, help="Caption of the table to extract (case-sensitive)", required=True
     )
     parser.add_argument("--skip-posters", action="store_true", help="Skip following title links to fetch posters")
     parser.add_argument("--delay", type=float, default=0.5, help="Delay in seconds between poster page requests")
-    parser.add_argument(
-        "-o", "--output", "--json", type=str, default=".\\data\\table_output.json", help="Output JSON path"
-    )
+    parser.add_argument("-o", "--json", type=str, default=".\\data\\table_output.json", help="Output JSON path")
     parser.add_argument("--csv", type=str, help="Output CSV path (optional)")
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="Logging verbosity: none=WARNING, -v=INFO, -vv=DEBUG"
     )
-    args = parser.parse_args(arg_list)
+    args: argparse.Namespace = parser.parse_args(arg_list)
 
     return args
 
 
-def get_html(url: str) -> BeautifulSoup:
-    """Fetch URL and return a BeautifulSoup parsed document."""
-    logger.info("Getting URL: %s", url)
-    resp = requests.get(url, headers=REQUEST_HEADERS, timeout=15)
+def request_url(url: str, headers: dict[str, str] = DEFAULT_REQUEST_HEADERS, timeout: float = 10) -> requests.Response:
+    """Request the URL and return the response object."""
+    logger.info("Requesting URL: %s", url)
+    resp = requests.get(url, headers=headers, timeout=timeout)
     logger.debug("HTTP response: %s", resp)
     resp.raise_for_status()  # raises HTTPError for 4xx/5xx
 
-    return BeautifulSoup(resp.text, "html.parser")
+    return resp
+
+
+def get_html(url: str) -> BeautifulSoup:
+    """Fetch URL and return a BeautifulSoup parsed document."""
+    resp = request_url(url)
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    return soup
 
 
 def map_headers(first_tr: Tag) -> dict[str, int]:
@@ -229,7 +237,7 @@ def parse_table(tbl: Tag) -> list[dict[str, str]]:
     return table_rows
 
 
-def save_json(data: list[dict[str, str]], path: str) -> None:
+def save_json(data: Sequence[Mapping[str, str | int]], path: Path | str) -> None:
     """Save `data` (already-serializable) as JSON to `path`."""
     p = Path(path)
     try:
@@ -245,7 +253,7 @@ def save_json(data: list[dict[str, str]], path: str) -> None:
     logger.info("Saved JSON file: %s", p)
 
 
-def save_csv(data: list[dict[str, str]], path: str) -> None:
+def save_csv(data: Sequence[Mapping[str, str | int]], path: Path | str) -> None:
     """Save `data` (already-serializable) as CSV to `path`.
 
     Preserves header order from 1st row.
@@ -269,19 +277,17 @@ def save_csv(data: list[dict[str, str]], path: str) -> None:
 
 def configure_logging(verbosity: int, format_string: str = DEFAULT_LOGGING_FORMAT) -> None:
     """Configure logging based on parsed arguments."""
+    #                       [30               20            10]
     log_levels: list[int] = [logging.WARNING, logging.INFO, logging.DEBUG]  # verbosity: none, -v, -vv
     verbosity_level = log_levels[min(verbosity, len(log_levels) - 1)]  # cap to last level index
-
     logging.basicConfig(level=verbosity_level, format=format_string)
-    # logger = logging.getLogger(__name__)
-
     logger.debug("Log level set to %s", logging.getLevelName(verbosity_level))
 
 
 def main(arg_list: list[str] | None = None) -> None:
     """CLI entrypoint that runs the parser/extractor and writes JSON/CSV as requested."""
     # Parse Arguments and Configure Logging
-    args = _parse_arguments(arg_list)
+    args = parse_arguments(arg_list)
     configure_logging(args.verbose)
     logger.debug("Passed Args: %s", ", ".join(f"{k}={v}" for k, v in vars(args).items()))
 
@@ -297,7 +303,7 @@ def main(arg_list: list[str] | None = None) -> None:
         fetch_bond_posters(rows, delay=args.delay)
 
     # Generic Save Functions
-    save_json(rows, args.output)  # always save JSON
+    save_json(rows, args.json)  # always save JSON
     if args.csv:
         save_csv(rows, args.csv)
 

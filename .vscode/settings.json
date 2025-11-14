@@ -3,6 +3,7 @@
         "Apted",
         "beautifulsoup",
         "Brosnan",
+        "caplog",
         "codespell",
         "Fukunaga",
         "Goldfinger",
@@ -12,6 +13,7 @@
         "mdformat",
         "Moonraker",
         "Octopussy",
+        "plainrowheaders",
         "Pylance",
         "pyproject",
         "Pyright",
@@ -21,6 +23,8 @@
         "Spottiswoode",
         "Tamahori",
         "Thunderball",
+        "usefixtures",
+        "vevent",
         "wikitable"
     ]
 }
