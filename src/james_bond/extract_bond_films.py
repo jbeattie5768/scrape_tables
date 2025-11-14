@@ -140,16 +140,19 @@ def extract_table_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]
 
 
 def extract_infobox_poster(infobox: Tag | None) -> str | None:
-    """Extract poster URL from film page infobox."""
-    if not infobox:
-        logger.warning("No infobox found")
+    """Extract poster URL from film page infobox.
+
+    Will only get first image.
+    """
+    if infobox is None:  # for type conformity
+        logger.warning("Infobox is None")
         return None
     img = infobox.find("img")
     if not (img and img.has_attr("src")):
         logger.warning("No image found in infobox")
         return None
     src: str = cast("str", img["src"])  # cast for type conformity
-    if src.startswith("//"):  # unlikely to be seen
+    if src.startswith("//"):  # usually "//upload.wikimedia.org"
         return "https:" + src
     if src.startswith("/"):
         return "https://en.wikipedia.org" + src
@@ -171,6 +174,9 @@ def fetch_bond_posters(rows: list[dict[str, str]], delay: float = 0.0) -> None:
             continue
         film_html = get_html(link)  # the films page
         infobox = film_html.find("table", class_=lambda c: "infobox" in str(c))
+        if not infobox:
+            logger.warning("No infobox table found in %s", link)
+            return
         poster = extract_infobox_poster(infobox)
         if poster:
             row["_poster_link"] = poster
@@ -298,7 +304,7 @@ def main(arg_list: list[str] | None = None) -> None:
     rows = parse_table(tbl)
 
     # Table Specific Functions
-    if not args.skip_posters:
+    if not args.skip_posters:  # pragma: no cover  # I don't know how to test this
         fetch_bond_posters(rows, delay=args.delay)
 
     # Generic Save Functions
@@ -307,6 +313,6 @@ def main(arg_list: list[str] | None = None) -> None:
         save_csv(rows, args.csv)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover  # used by pytest-cov
     print(f"Python Environment: {sys.executable}")
     main()
