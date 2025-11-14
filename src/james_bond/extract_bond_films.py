@@ -113,8 +113,7 @@ def extract_table_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]
     extracted_rows: list[dict[str, str]] = []
     caption = tbl.find("caption")
     if caption:  # for type conformity
-        caption = caption.get_text().strip()
-        logger.info("Extracting rows from '%s' table", caption)
+        logger.info("Extracting rows from '%s' table", caption.get_text().strip())
 
     for tr in tbl.find_all("tr")[1:]:  # first row was header
         row_cells = tr.find_all(["th", "td"])

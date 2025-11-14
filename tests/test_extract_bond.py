@@ -118,7 +118,7 @@ def test_main(tmp_path: Path) -> None:
     assert loaded_data[1]["year"] == "1963"
 
 
-def test_extract_infobox_poster():
+def test_extract_infobox_poster() -> None:
     """Test extraction of poster URL from infobox HTML."""
     soup = BeautifulSoup(INFOBOX_HTML, "html.parser")
     infobox = soup.find("table", {"class": "infobox vevent"})
@@ -306,7 +306,7 @@ def mock_request_url(mocker: MockerFixture) -> mock.MagicMock:
 
 
 @pytest.mark.usefixtures("mock_request_url")
-def test_mocked_request_url():
+def test_mocked_request_url() -> None:
     resp = request_url(TEST_URL)
     assert resp.status_code == STATUS_CODE_OK
 
@@ -319,7 +319,7 @@ def test_mocked_request_url():
 
 
 @pytest.mark.usefixtures("mock_request_url")
-def test_get_html():
+def test_get_html() -> None:
     """Fetch URL and return a BeautifulSoup parsed document."""
     resp = get_html(TEST_URL)
     assert resp is not None
