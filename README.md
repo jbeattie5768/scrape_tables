@@ -66,12 +66,25 @@ uv run james-bond -t "Eon films" --skip-posters -o .\\data\\eon_films.json
 
 - Pyright via Pylance with settings.json entry: `python.analysis.typeCheckingMode": "standard"`
 - MyPy
-  - mypy --strict .\\src\\james_bond\\extract_bond_films.py
+  - uv run mypy --strict .\\src
+  - uv run mypy --strict .\\tests
   - uv run python -m mypy --strict .\\src\\james_bond\\extract_bond_films.py
 
 ## PyTest
 
-- uv run python -m pytest -v
+- uv run python -m pytest -rs -v
+
+- uv run python -m pytest .\\tests\\test_extract_bond_films.py -rs -v
+
+- uv run python -m pytest .\\tests\\test_extract_wiki_table.py -rs -v
+
+- Do NOT use '--cov=.', you end up covering coverage
+
+- uv run python -m pytest --cov=src. --cov-report html
+
+- uv run python -m pytest .\\tests\\test_extract_bond_films.py --cov=src.james_bond.extract_bond_films --cov-report html
+
+- uv run python -m pytest .\\tests\\test_extract_wiki_table.py --cov=src.james_bond.extract_wiki_table --cov-report html
 
 ## Websites
 
