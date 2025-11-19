@@ -14,7 +14,7 @@ import requests
 import responses  # A utility library for mocking out the requests Python library
 from bs4 import BeautifulSoup, Tag
 
-from src.james_bond.extract_wiki_table import (
+from src.scrape_tables.scrapers.scrape_wiki_table import (
     cell_text_and_link,
     configure_logging,
     extract_table_rows,

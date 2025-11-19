@@ -15,10 +15,11 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from bs4 import Tag
 
-import james_bond.extract_wiki_table as wiki_table
+import scrape_tables.scrapers.scrape_wiki_table as wiki_table
 
 # CONSTANTS
 DEFAULT_URL = "https://en.wikipedia.org/wiki/List_of_James_Bond_films"
+DEFAULT_TABLE = "Eon films"  # the *first* table with this caption
 DEFAULT_DELAY = 0.5  # seconds between poster page requests
 logger = logging.getLogger(__name__)
 
@@ -29,9 +30,14 @@ def parse_arguments(arg_list: list[str] | None) -> argparse.Namespace:
 
     parser.add_argument("-u", "--url", type=str, default=DEFAULT_URL, help="URL of the HTML page to get")
     parser.add_argument(
-        "-t", "--table", type=str, help="Caption of the table to extract (case-sensitive)", required=True
+        "-t", "--table", type=str, default=DEFAULT_TABLE, help="Caption of the table to extract (case-sensitive)"
     )
-    parser.add_argument("--skip-posters", action="store_true", help="Skip following title links to fetch posters")
+    parser.add_argument(
+        "--skip-posters",
+        default=False,
+        action="store_true",
+        help="Skip following title links to fetch posters",
+    )
     parser.add_argument(
         "--delay", type=float, default=DEFAULT_DELAY, help="Delay in seconds between poster page requests"
     )

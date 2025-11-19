@@ -13,14 +13,14 @@ import pytest
 import responses  # A utility library for mocking out the requests Python library
 from bs4 import BeautifulSoup
 
-from src.james_bond.extract_bond_films import (
+from src.scrape_tables.examples.extract_bond_films import (
     DEFAULT_DELAY,
     extract_infobox_poster,
     fetch_bond_posters,
     main,
     parse_arguments,
 )
-from src.james_bond.extract_wiki_table import (
+from src.scrape_tables.scrapers.scrape_wiki_table import (
     parse_table,
 )
 from tests.dummy_html import (
