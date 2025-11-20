@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import csv
 import json
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,8 +13,7 @@ from bs4 import BeautifulSoup
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from bs4 import Tag
-    from bs4.element import AttributeValueList
+    from bs4.element import Tag
 
 # CONSTANTS
 DEFAULT_URL = "https://en.wikipedia.org/wiki/List_of_James_Bond_films"
@@ -81,8 +82,9 @@ def extract_table_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]
     """
     extracted_rows: list[dict[str, str]] = []
     caption = tbl.find("caption")
-    if caption:  # for type conformity
-        logger.info("Extracting rows from '%s' table", caption.get_text().strip())
+    caption_text = caption.get_text().strip() if caption else ""
+    if caption:
+        logger.info("Extracting rows from '%s' table", caption_text)
 
     for tr in tbl.find_all("tr")[1:]:  # first row was header
         row_cells = tr.find_all(["th", "td"])
@@ -103,7 +105,7 @@ def extract_table_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]
         logger.debug("Extracted Row: %s", map_row)
         extracted_rows.append(map_row)
 
-    logger.debug("Extracted %d rows from '%s' table", len(extracted_rows), caption)
+    logger.debug("Extracted %d rows from '%s' table", len(extracted_rows), caption_text)
 
     return extracted_rows
 
@@ -140,13 +142,15 @@ def cell_text_and_link(cell: Tag) -> dict[str, str]:
     """Return a dict with the table cells text and a fully-qualified link (if any)."""
     text: str = cell.get_text(" ", strip=True)
     href_tag: Tag | None = cell.find("a", href=True)
-    href: str | AttributeValueList | None = ""  # not all cells will have a link
+    href_str = ""  # not all cells will have a link
     if href_tag:
         href = href_tag.get("href")
-        if isinstance(href, str) and href.startswith("/wiki/"):
-            href = "https://en.wikipedia.org" + href
+        if isinstance(href, str):
+            href_str = "https://en.wikipedia.org" + href if href.startswith("/wiki/") else href
+        else:
+            href_str = str(href)  # cast for type conformity
 
-    return {"text": text, "link": str(href)}  # cast for type conformity
+    return {"text": text, "link": href_str}
 
 
 def parse_table(tbl: Tag) -> list[dict[str, str]]:
@@ -155,7 +159,9 @@ def parse_table(tbl: Tag) -> list[dict[str, str]]:
     This function maps headers, extracts table rows.
     """
     first_tr: Tag | None = tbl.find("tr")
-    first_tr = cast("Tag", first_tr)  # cast for type conformity
+    if first_tr is None:
+        logger.error("No rows found in table to parse")
+        return []
     header_map = map_headers(first_tr)
     table_rows = extract_table_rows(tbl, header_map)  # skips non-valid rows
 
@@ -165,12 +171,12 @@ def parse_table(tbl: Tag) -> list[dict[str, str]]:
 def save_json(data: Sequence[Mapping[str, str | int]], path: Path | str) -> None:
     """Save `data` (already-serializable) as JSON to `path`."""
     p = Path(path)
-    try:
-        p.parents[0].mkdir(parents=True)
-    except FileExistsError:
-        logger.debug("JSON folder already exists: %s", p.parents[0])
+
+    if not p.parent.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        logger.debug("JSON folder was created: %s", p.parent)
     else:
-        logger.debug("JSON folder was created: %s", p.parents[0])
+        logger.debug("JSON folder already exists: %s", p.parent)
 
     with p.open("w", encoding="UTF-8") as fid:
         json.dump(data, fid, indent=2, ensure_ascii=False)
@@ -184,20 +190,24 @@ def save_csv(data: Sequence[Mapping[str, str | int]], path: Path | str) -> None:
     Preserves header order from 1st row.
     """
     p = Path(path)
-    try:
-        p.parents[0].mkdir(parents=True)
-    except FileExistsError:
-        logger.debug("CSV folder already exists: %s", p.parents[0])
-    else:
-        logger.debug("CSV folder was created: %s", p.parents[0])
 
-    keys = data[0].keys()  # preserve order, from first row
+    if not data:
+        logger.warning("No data provided to save_csv; nothing written to %s", p)
+        return
+
+    if not p.parent.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        logger.debug("CSV folder was created: %s", p.parent)
+    else:
+        logger.debug("CSV folder already exists: %s", p.parent)
+
+    keys = list(data[0].keys())  # preserve order, from first row
     with p.open("w", newline="", encoding="utf-8") as fid:
         writer = csv.DictWriter(fid, fieldnames=keys)
         writer.writeheader()
         writer.writerows(data)
     logger.debug("Wrote %d entries to CSV file", len(data))
-    logger.info("Saved CSV  file: %s", p)
+    logger.info("Saved CSV file: %s", p)
 
 
 def configure_logging(verbosity: int, format_string: str = DEFAULT_LOGGING_FORMAT) -> None:
@@ -205,5 +215,12 @@ def configure_logging(verbosity: int, format_string: str = DEFAULT_LOGGING_FORMA
     #                       [30               20            10]
     log_levels: list[int] = [logging.WARNING, logging.INFO, logging.DEBUG]  # verbosity: none, -v, -vv
     verbosity_level = log_levels[min(verbosity, len(log_levels) - 1)]  # cap to last level index
-    logging.basicConfig(level=verbosity_level, format=format_string)
+
+    root = logging.getLogger()
+    root.setLevel(verbosity_level)
+    if not root.handlers:
+        logging.basicConfig(level=verbosity_level, format=format_string)
+    else:
+        for h in root.handlers:
+            h.setLevel(verbosity_level)
     logger.debug("Log level set to %s", logging.getLevelName(verbosity_level))

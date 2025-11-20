@@ -6,6 +6,8 @@ For BeautifulSoup usage, see: https://www.crummy.com/software/BeautifulSoup/bs4/
 
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import sys
@@ -13,7 +15,9 @@ import time
 from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    from bs4 import Tag
+    from bs4.element import Tag
+
+import requests
 
 import scrape_tables.scrapers.scrape_wiki_table as wiki_table
 
@@ -41,7 +45,7 @@ def parse_arguments(arg_list: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--delay", type=float, default=DEFAULT_DELAY, help="Delay in seconds between poster page requests"
     )
-    parser.add_argument("-o", "--json", type=str, default=".\\data\\table_output.json", help="Output JSON path")
+    parser.add_argument("-o", "--json", type=str, default="data/table_output.json", help="Output JSON path")
     parser.add_argument("--csv", type=str, help="Output CSV path (optional)")
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="Logging verbosity: none=WARNING, -v=INFO, -vv=DEBUG"
@@ -84,11 +88,20 @@ def fetch_bond_posters(rows: list[dict[str, str]], delay: float = 0.0) -> None:
             logger.warning("No title link for %s, skipping poster fetch", row.get("title"))
             logger.debug("Row: %s", row)
             continue
-        film_html = wiki_table.get_html(link)  # the films page
+        try:
+            film_html = wiki_table.get_html(link)  # the films page
+        except requests.exceptions.RequestException as exc:
+            logger.warning("Failed to fetch film page %s: %s", link, exc)
+            continue
+        except ValueError as exc:
+            # Catch parsing errors or other value errors raised by get_html
+            logger.warning("Failed to parse film page %s: %s", link, exc)
+            continue
+
         infobox = film_html.find("table", class_=lambda c: "infobox" in str(c))
         if not infobox:
             logger.warning("No infobox table found in %s", link)
-            return
+            continue
         poster = extract_infobox_poster(infobox)
         if poster:
             row["_poster_link"] = poster
@@ -101,7 +114,12 @@ def fetch_bond_posters(rows: list[dict[str, str]], delay: float = 0.0) -> None:
 
 
 def main(arg_list: list[str] | None = None) -> None:
-    """CLI entrypoint that runs the parser/extractor and writes JSON/CSV as requested."""
+    """CLI entrypoint that runs the parser/extractor and writes JSON/CSV as requested.
+
+    By default `main()` returns `None` and is safe to call from tests or other code.
+    If `exit_on_error=True`, the function will call `sys.exit(code)` on fatal errors
+    so it can be used as a CLI entrypoint that returns proper exit codes.
+    """
     # Parse Arguments and Configure Logging
     args = parse_arguments(arg_list)
     wiki_table.configure_logging(args.verbose)
@@ -111,11 +129,12 @@ def main(arg_list: list[str] | None = None) -> None:
     soup = wiki_table.get_html(args.url)
     tbl = wiki_table.find_table_by_caption(soup, args.table)
     if not tbl:
-        return  # should be able to handle this better!
+        logger.error("Table '%s' not found at %s", args.table, args.url)
+        sys.exit(1)
     rows = wiki_table.parse_table(tbl)
 
     # Table Specific Functions
-    if not args.skip_posters:  # pragma: no cover  # How to test this?
+    if not args.skip_posters:
         fetch_bond_posters(rows, delay=args.delay)
 
     # Generic Save Functions
@@ -126,4 +145,6 @@ def main(arg_list: list[str] | None = None) -> None:
 
 if __name__ == "__main__":  # pragma: no cover  # used by pytest-cov
     print(f"Python Environment: {sys.executable}")
+    # When running as a script, exit on error so callers get non-zero exit codes.
     main()
+    sys.exit(0)  # exit with success

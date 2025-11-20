@@ -1,6 +1,6 @@
-"""Unit tests for the Bond table extractor.
+"""Unit tests for the Wiki table scraper.
 
-These tests are intentionally minimal and avoid network access.
+These tests avoid network access, whether through mocking or the responses library.
 """
 
 import csv
@@ -14,7 +14,8 @@ import requests
 import responses  # A utility library for mocking out the requests Python library
 from bs4 import BeautifulSoup, Tag
 
-from src.scrape_tables.scrapers.scrape_wiki_table import (
+# Import as package name from src layout
+from scrape_tables.scrapers.scrape_wiki_table import (
     cell_text_and_link,
     configure_logging,
     extract_table_rows,
@@ -26,15 +27,16 @@ from src.scrape_tables.scrapers.scrape_wiki_table import (
     save_csv,
     save_json,
 )
-from tests.dummy_html import (
+from tests.fixtures import (
     TEST_HTML,
     TEST_HTML_INFOBOX,
+    TEST_HTML_NO_ROWS,
     TEST_HTML_SHORT_ROW,
 )
 
 # CONSTANTS
 LEN_OF_ROWS = 2  # update this if the number of rows in the test-table changes
-LOGGING_LEVEL = logging.DEBUG  # For test, corresponds to -vv verbosity
+# LOGGING_LEVEL = logging.DEBUG  # For test, corresponds to -vv verbosity
 VERBOSITY_LEVEL = 2  # = logging.DEBUG
 STATUS_CODE_OK = 200
 DEFAULT_TABLE_CLASS = "wikitable"
@@ -50,7 +52,7 @@ TEST_ROWS_DATA: list[dict[str, str | int]] = [
 def test_map_headers() -> None:
     """Test mapping of table headers to expected keys."""
     expected_map = {"title": 0, "year": 1, "bond actor": 2, "director": 3}
-    soup = BeautifulSoup(TEST_HTML, "html.parser")  # instead of get_html(URL)
+    soup = BeautifulSoup(TEST_HTML, "html.parser")
     tbl = find_table_by_caption(soup, "Eon films")
     assert tbl is not None
 
@@ -62,8 +64,8 @@ def test_map_headers() -> None:
 
 
 def test_extract_table_rows() -> None:
-    """Test extraction of table rows from mock HTML."""
-    soup = BeautifulSoup(TEST_HTML, "html.parser")  # instead of get_html(URL)
+    """Test extraction of table rows."""
+    soup = BeautifulSoup(TEST_HTML, "html.parser")
     tbl = find_table_by_caption(soup, "Eon films")
     assert tbl is not None
 
@@ -81,9 +83,9 @@ def test_extract_table_rows() -> None:
 
 
 def test_extract_table_rows_short_row(caplog: pytest.LogCaptureFixture) -> None:
-    """Test extraction of table rows with short rows from mock HTML."""
-    caplog.set_level(LOGGING_LEVEL)  # Debug level to capture at
-    soup = BeautifulSoup(TEST_HTML_SHORT_ROW, "html.parser")  # instead of get_html(URL)
+    """Test extraction of table rows with short rows."""
+    caplog.set_level(logging.DEBUG)
+    soup = BeautifulSoup(TEST_HTML_SHORT_ROW, "html.parser")
     tbl = find_table_by_caption(soup, "Eon films")
     assert tbl is not None
 
@@ -100,11 +102,11 @@ def test_extract_table_rows_short_row(caplog: pytest.LogCaptureFixture) -> None:
 
 def test_cell_text_and_link() -> None:
     """Test extraction of text and link from a table cell."""
-    soup = BeautifulSoup(TEST_HTML, "html.parser")  # instead of get_html(URL)
+    soup = BeautifulSoup(TEST_HTML, "html.parser")
     tbl = find_table_by_caption(soup, "Eon films")
     assert tbl is not None
 
-    first_row = tbl.find_all("tr")[1]  # Skip header row
+    first_row = tbl.find_all("tr")[1]  # skip header row
     row_cells = first_row.find_all(["th", "td"])
     assert row_cells is not None
 
@@ -115,20 +117,58 @@ def test_cell_text_and_link() -> None:
     assert link_cell == "https://en.wikipedia.org/wiki/Dr._No_(film)"
 
 
-def test_configure_logging(caplog: pytest.LogCaptureFixture) -> None:
-    """Test logging configuration based on verbosity level."""
-    # The actual logging configuration is not easily testable without inspecting the logger state
-    # directly. However, we can check the logging output via the caplog fixture.
-    caplog.set_level(LOGGING_LEVEL)
-    log_levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-    verbose_level = log_levels.index(logging.DEBUG)
+def test_cell_text_and_link_non_string_href() -> None:
+    """When an anchor has a no string-href (e.g. list), ensure test code falls back to it having been stringified."""
+    soup = BeautifulSoup("<td><a>Title</a></td>", "html.parser")  # no href
+    tag_a = soup.find("a")
+    assert tag_a is not None
 
-    configure_logging(verbose_level)
+    # Simulate a multi-valued attribute for the test
+    tag_a["href"] = ["/wiki/A", "/wiki/B"]  # type: ignore[assignment]
+    cell = soup.find("td")
+    assert cell is not None
+    title_cell = cell_text_and_link(cell)["text"]
+    link_cell = cell_text_and_link(cell)["link"]
+    assert title_cell == "Title"
+    assert "/wiki/A" in link_cell  # should be stringified
+
+
+def test_configure_logging(caplog: pytest.LogCaptureFixture) -> None:
+    """Test logging configuration based on verbosity level.
+
+    Check the logging output via the caplog fixture.
+    """
+    caplog.set_level(logging.DEBUG)
+    configure_logging(VERBOSITY_LEVEL)
     assert f"Log level set to {logging.getLevelName(logging.DEBUG)}" in caplog.text
 
 
-def test_save_json(tmp_path: Path) -> None:
-    """Test saving JSON data to a file."""
+def test_configure_logging_no_root_handlers(caplog: pytest.LogCaptureFixture) -> None:
+    """When the root logger has no handlers, `configure_logging` should call basicConfig and log the level."""
+    root = logging.getLogger()
+    # Save and remove existing handlers to simulate 'no handlers' path
+    saved_handlers = list(root.handlers)
+    for h in saved_handlers:
+        root.removeHandler(h)
+    try:
+        caplog.set_level(logging.DEBUG)
+        configure_logging(VERBOSITY_LEVEL)
+
+        assert root.handlers, "basicConfig did not add a handler to root"
+        assert root.level == logging.DEBUG
+    finally:
+        # restore original handlers
+        for h in list(root.handlers):
+            root.removeHandler(h)
+        for h in saved_handlers:
+            root.addHandler(h)
+
+
+def test_save_json_exist_folder(tmp_path: Path) -> None:
+    """Test saving JSON data to a file.
+
+    This test uses an existing folder.
+    """
     file_path = tmp_path / "bond_films.json"
 
     save_json(TEST_ROWS_DATA, file_path)
@@ -139,9 +179,12 @@ def test_save_json(tmp_path: Path) -> None:
 
 
 def test_save_json_new_folder(caplog: pytest.LogCaptureFixture, tmp_path: Path) -> None:
-    """Test saving JSON data to a file."""
-    file_path = tmp_path / "jbf/bond_films.json"
-    caplog.set_level(LOGGING_LEVEL)  # Debug level to capture at
+    """Test saving JSON data to a file.
+
+    This test creates a new folder.
+    """
+    file_path = tmp_path / "jbf/bond_films.json"  # jbf is the new folder
+    caplog.set_level(logging.DEBUG)
 
     save_json(TEST_ROWS_DATA, file_path)
     assert file_path.exists()
@@ -152,7 +195,10 @@ def test_save_json_new_folder(caplog: pytest.LogCaptureFixture, tmp_path: Path) 
 
 
 def test_save_csv(tmp_path: Path) -> None:
-    """Test saving CSV data to a file."""
+    """Test saving CSV data to a file.
+
+    This test uses an existing folder.
+    """
     file_path = tmp_path / "bond_films.csv"
 
     save_csv(TEST_ROWS_DATA, file_path)
@@ -164,21 +210,36 @@ def test_save_csv(tmp_path: Path) -> None:
 
 
 def test_save_csv_new_folder(caplog: pytest.LogCaptureFixture, tmp_path: Path) -> None:
-    """Test saving CSV data to a file."""
-    file_path = tmp_path / "jbf/bond_films.csv"
-    caplog.set_level(LOGGING_LEVEL)  # Debug level to capture at
+    """Test saving CSV data to a file.
+
+    This test creates a new folder.
+    """
+    file_path = tmp_path / "jbf/bond_films.csv"  # jbf is the new folder
+    caplog.set_level(logging.DEBUG)  # captures lower as well, e.g. INFO
 
     save_csv(TEST_ROWS_DATA, file_path)
     assert file_path.exists()
+    assert "CSV folder was created: " in caplog.text
     with Path.open(file_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         loaded_data = list(reader)
     assert loaded_data == TEST_ROWS_DATA
-    assert "CSV folder was created: " in caplog.text
+    assert "Saved CSV file" in caplog.text
+
+
+def test_save_csv_no_data(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """save_csv should do nothing and log a warning when passed empty data."""
+    file_path = tmp_path / "no_data.csv"
+    caplog.set_level(logging.WARNING)
+
+    save_csv([], file_path)  # empty data
+    assert not file_path.exists()
+    assert "No data provided to save_csv" in caplog.text
 
 
 def test_parse_table() -> None:
-    soup = BeautifulSoup(TEST_HTML, "html.parser")  # instead of get_html(URL)
+    """Test parsing a table."""
+    soup = BeautifulSoup(TEST_HTML, "html.parser")
     tbl = find_table_by_caption(soup, "Eon films")
     assert tbl is not None
 
@@ -191,9 +252,18 @@ def test_parse_table() -> None:
     assert first["director"] == "Terence Young"
 
 
+def test_parse_table_no_rows() -> None:
+    """parse_table should return empty list when table has no rows."""
+    soup = BeautifulSoup(TEST_HTML_NO_ROWS, "html.parser")
+    tbl = soup.find("table")
+    assert tbl is not None
+    rows = parse_table(tbl)
+    assert rows == []
+
+
 def test_find_table_by_caption() -> None:
-    """Find a table by its caption in a BeautifulSoup object."""
-    soup = BeautifulSoup(TEST_HTML, "html.parser")  # instead of get_html(URL)
+    """Test finding a table by its caption."""
+    soup = BeautifulSoup(TEST_HTML, "html.parser")
     assert soup is not None
 
     table = find_table_by_caption(soup, table_caption="Eon films", table_class=DEFAULT_TABLE_CLASS)
@@ -206,8 +276,8 @@ def test_find_table_by_caption() -> None:
 
 
 def test_find_table_by_caption_no_table() -> None:
-    """Find a table by its caption in a BeautifulSoup object."""
-    soup = BeautifulSoup(TEST_HTML_INFOBOX, "html.parser")  # instead of get_html(URL)
+    """Try to find a non-existent table by its caption."""
+    soup = BeautifulSoup(TEST_HTML_INFOBOX, "html.parser")
     assert soup is not None
 
     table = find_table_by_caption(soup, table_caption="Eon films", table_class=DEFAULT_TABLE_CLASS)
@@ -216,6 +286,10 @@ def test_find_table_by_caption_no_table() -> None:
 
 @responses.activate
 def test_request_url_ok() -> None:
+    """Test requesting a URL.
+
+    This uses the responses library to mock the requests.get() functionality.
+    """
     responses.get(
         TEST_URL,
         body=TEST_HTML,
@@ -236,6 +310,10 @@ def test_request_url_ok() -> None:
 
 @responses.activate
 def test_request_url_error() -> None:
+    """Test when requesting a URL returns an error.
+
+    This uses the responses library to mock the requests.get() functionality.
+    """
     responses.get(
         TEST_URL,
         body=TEST_HTML,
@@ -251,7 +329,10 @@ def test_request_url_error() -> None:
 
 @responses.activate
 def test_get_html() -> None:
-    """Fetch URL and return a BeautifulSoup parsed document."""
+    """Fetch URL and return a BeautifulSoup parsed document.
+
+    This uses the responses library to mock the requests.get() functionality.
+    """
     responses.get(
         TEST_URL,
         body=TEST_HTML,

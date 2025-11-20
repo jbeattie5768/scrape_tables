@@ -1,4 +1,4 @@
-"""Dummy HTML code for testing purposes."""
+"""HTML fixtures for tests (moved from dummy_html.py)."""
 
 TEST_HTML = """
     <html>
@@ -51,6 +51,16 @@ TEST_HTML_SHORT_ROW = """
                         <td>1963</td>
                         <!-- Two Missing Rows -->
                     </tr>
+                </table>
+        </body>
+    </html>
+"""
+TEST_HTML_NO_ROWS = """
+    <html>
+        <head><title>James Bond Films</title></head>
+            <body>
+                <table class="wikitable" style="text-align:center;">
+                    <caption>Eon films</caption>
                 </table>
         </body>
     </html>

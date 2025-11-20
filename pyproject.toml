@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "beautifulsoup4>=4.14.2",
+    "beautifulsoup4>=4.14.2",  # >= 4.13 includes type stubs
     "requests>=2.32.5",
 ]
 
@@ -28,3 +28,13 @@ dev = [
     "responses>=0.25.8", # Lib for mocking out requests lib for tests
     "types-requests>=2.32.4.20250913", # stub package
 ]
+
+[tool.mypy]
+# Make src the import root so modules are resolved as `scrape_tables.*`
+mypy_path = ["src"]
+
+# Explicit files to check (prevents accidental duplicate discovery)
+files = ["src", "tests"]
+
+ignore_missing_imports = false   # Display error for all missing imports
+strict=true
