@@ -32,28 +32,23 @@ from tests.fixtures import (
     TEST_HTML_INFOBOX,
     TEST_HTML_NO_ROWS,
     TEST_HTML_SHORT_ROW,
+    TEST_ROWS_DATA,
+    TEST_URL,
 )
 
 # CONSTANTS
 LEN_OF_ROWS = 2  # update this if the number of rows in the test-table changes
-# LOGGING_LEVEL = logging.DEBUG  # For test, corresponds to -vv verbosity
 VERBOSITY_LEVEL = 2  # = logging.DEBUG
 STATUS_CODE_OK = 200
 DEFAULT_TABLE_CLASS = "wikitable"
-
-# Constants for test data
-TEST_URL = "https://example.com/bond_films"
-TEST_ROWS_DATA: list[dict[str, str | int]] = [
-    {"title": "Dr. No", "year": "1962"},  # Keep year as str for CSV comparison
-    {"title": "From Russia with Love", "year": "1963"},
-]
+DEFAULT_TABLE_NAME = "Eon films"
 
 
 def test_map_headers() -> None:
     """Test mapping of table headers to expected keys."""
     expected_map = {"title": 0, "year": 1, "bond actor": 2, "director": 3}
     soup = BeautifulSoup(TEST_HTML, "html.parser")
-    tbl = find_table_by_caption(soup, "Eon films")
+    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
     assert tbl is not None
 
     first_tr = tbl.find("tr")
@@ -66,7 +61,7 @@ def test_map_headers() -> None:
 def test_extract_table_rows() -> None:
     """Test extraction of table rows."""
     soup = BeautifulSoup(TEST_HTML, "html.parser")
-    tbl = find_table_by_caption(soup, "Eon films")
+    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
     assert tbl is not None
 
     first_tr = tbl.find("tr")
@@ -86,7 +81,7 @@ def test_extract_table_rows_short_row(caplog: pytest.LogCaptureFixture) -> None:
     """Test extraction of table rows with short rows."""
     caplog.set_level(logging.DEBUG)
     soup = BeautifulSoup(TEST_HTML_SHORT_ROW, "html.parser")
-    tbl = find_table_by_caption(soup, "Eon films")
+    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
     assert tbl is not None
 
     first_tr = tbl.find("tr")
@@ -94,8 +89,7 @@ def test_extract_table_rows_short_row(caplog: pytest.LogCaptureFixture) -> None:
     assert header_map is not None
 
     table_rows = extract_table_rows(tbl, header_map)
-    # There should have been short-rows detected and ignored
-    assert len(table_rows) == 0
+    assert len(table_rows) == 0  # short-rows should have been detected and ignored
     assert "Skipping row with insufficient cells: Dr. No 1962" in caplog.text
     assert "Skipping row with insufficient cells: From Russia with Love 1963" in caplog.text
 
@@ -103,7 +97,7 @@ def test_extract_table_rows_short_row(caplog: pytest.LogCaptureFixture) -> None:
 def test_cell_text_and_link() -> None:
     """Test extraction of text and link from a table cell."""
     soup = BeautifulSoup(TEST_HTML, "html.parser")
-    tbl = find_table_by_caption(soup, "Eon films")
+    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
     assert tbl is not None
 
     first_row = tbl.find_all("tr")[1]  # skip header row
@@ -240,7 +234,7 @@ def test_save_csv_no_data(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> N
 def test_parse_table() -> None:
     """Test parsing a table."""
     soup = BeautifulSoup(TEST_HTML, "html.parser")
-    tbl = find_table_by_caption(soup, "Eon films")
+    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
     assert tbl is not None
 
     rows = parse_table(tbl)
@@ -266,13 +260,13 @@ def test_find_table_by_caption() -> None:
     soup = BeautifulSoup(TEST_HTML, "html.parser")
     assert soup is not None
 
-    table = find_table_by_caption(soup, table_caption="Eon films", table_class=DEFAULT_TABLE_CLASS)
+    table = find_table_by_caption(soup, table_caption=DEFAULT_TABLE_NAME, table_class=DEFAULT_TABLE_CLASS)
     assert table is not None
     assert table.name == "table"
 
     caption = table.find("caption")
     assert caption is not None
-    assert caption.text.strip() == "Eon films"
+    assert caption.text.strip() == DEFAULT_TABLE_NAME
 
 
 def test_find_table_by_caption_no_table() -> None:
@@ -280,7 +274,7 @@ def test_find_table_by_caption_no_table() -> None:
     soup = BeautifulSoup(TEST_HTML_INFOBOX, "html.parser")
     assert soup is not None
 
-    table = find_table_by_caption(soup, table_caption="Eon films", table_class=DEFAULT_TABLE_CLASS)
+    table = find_table_by_caption(soup, table_caption=DEFAULT_TABLE_NAME, table_class=DEFAULT_TABLE_CLASS)
     assert table is None
 
 
@@ -305,7 +299,7 @@ def test_request_url_ok() -> None:
     assert soup is not None
     title = soup.find("title")
     assert title is not None
-    assert title.text == "James Bond Films"  # From MOCK_HTML
+    assert title.text == "James Bond Films"
 
 
 @responses.activate
@@ -336,7 +330,7 @@ def test_get_html() -> None:
     responses.get(
         TEST_URL,
         body=TEST_HTML,
-        status=200,
+        status=STATUS_CODE_OK,
         content_type="text/html",
     )
 

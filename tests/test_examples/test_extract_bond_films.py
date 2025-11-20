@@ -33,19 +33,13 @@ from tests.fixtures import (
     TEST_HTML_INFOBOX_3,
     TEST_HTML_INFOBOX_NO_IMG,
     TEST_HTML_INFOBOX_NO_SRC,
+    TEST_URL,
 )
 
 # CONSTANTS
 LEN_OF_ROWS = 2  # update this if the number of rows in the test-table changes
 DEFAULT_TABLE_CLASS = "wikitable"
 DEFAULT_INFOBOX_CLASS = "infobox vevent"
-
-# Constants for test data
-TEST_URL = "https://example.com/bond_films"
-TEST_ROWS_DATA: list[dict[str, str | int]] = [
-    {"title": "Dr. No", "year": "1962"},  # Keep year as str for CSV comparison
-    {"title": "From Russia with Love", "year": "1963"},
-]
 
 
 @responses.activate
@@ -173,9 +167,9 @@ def test_fetch_bond_posters_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
     def mock_get_html(url: str) -> BeautifulSoup:
         # Simulate network error for the first film
-        if "Dr._No" in url or "Dr._No_(film)" in url:
+        if "Dr._No" in url:
             msg = "Simulated network error"
-            raise requests.exceptions.RequestException(msg)  # Failed to fetch film page
+            raise requests.exceptions.RequestException(msg)  # failed to fetch film page
         return BeautifulSoup(TEST_HTML_INFOBOX_3, "html.parser")  # valid infobox for the other film
 
     # Get a Table of Rows from HTML
@@ -218,7 +212,7 @@ def test_fetch_bond_posters_continues_on_value_error(monkeypatch: pytest.MonkeyP
 def test_fetch_bond_posters_respects_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     """Passing a positive delay should call time.sleep()."""
 
-    def always_return_infobox(_url: str) -> BeautifulSoup:
+    def mock_get_html(_url: str) -> BeautifulSoup:
         return BeautifulSoup(TEST_HTML_INFOBOX_3, "html.parser")
 
     def fake_sleep(s: float) -> None:
@@ -232,7 +226,7 @@ def test_fetch_bond_posters_respects_delay(monkeypatch: pytest.MonkeyPatch) -> N
     assert rows
 
     sleep_calls: list[float] = []
-    monkeypatch.setattr("scrape_tables.scrapers.scrape_wiki_table.get_html", always_return_infobox)
+    monkeypatch.setattr("scrape_tables.scrapers.scrape_wiki_table.get_html", mock_get_html)
     monkeypatch.setattr("time.sleep", fake_sleep)
 
     fetch_bond_posters(rows, delay=0.01)
@@ -243,10 +237,10 @@ def test_fetch_bond_posters_respects_delay(monkeypatch: pytest.MonkeyPatch) -> N
 def test_fetch_bond_posters_no_infobox(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     """If the film page has no infobox table, fetch_bond_posters should log a warning and skip."""
     caplog.set_level(logging.WARNING)
+    # Not using TEST_ROW_DATA as don't want to corrupt it
     rows = [{"title": "Dr. No", "_title_link": "https://example.com/Dr._No"}]
 
     def fake_get_html(_url: str) -> BeautifulSoup:
-        # return a page with no infobox
         return BeautifulSoup(TEST_HTML, "html.parser")  # TEST_HTML has no infobox
 
     monkeypatch.setattr("scrape_tables.scrapers.scrape_wiki_table.get_html", fake_get_html)
@@ -261,9 +255,8 @@ def test_fetch_bond_posters_no_image(monkeypatch: pytest.MonkeyPatch, caplog: py
     caplog.set_level(logging.WARNING)
     rows = [{"title": "Dr. No", "_title_link": "https://example.com/Dr._No"}]
 
-    # Return an infobox without an <img> (so extract_infobox_poster returns None)
     def fake_get_html(_url: str) -> BeautifulSoup:
-        return BeautifulSoup(TEST_HTML_INFOBOX_NO_IMG, "html.parser")
+        return BeautifulSoup(TEST_HTML_INFOBOX_NO_IMG, "html.parser")  #  no infobox image
 
     monkeypatch.setattr("scrape_tables.scrapers.scrape_wiki_table.get_html", fake_get_html)
 
@@ -373,7 +366,6 @@ def test_fetch_bond_posters(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("scrape_tables.scrapers.scrape_wiki_table.get_html", mock_get_html)
     fetch_bond_posters(rows, delay=0)  # no delay as tested with mocked data
 
-    # Assert each row gained a poster link where available
     assert any("_poster_link" in r for r in rows)
     assert rows[0].get("_poster_link") is not None
     assert rows[1].get("_poster_link") is not None

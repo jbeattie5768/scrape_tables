@@ -1,4 +1,11 @@
-"""HTML fixtures for tests (moved from dummy_html.py)."""
+"""Test fixtures for scraping and extraction tests."""
+
+TEST_URL = "https://example.com/bond_films"
+
+TEST_ROWS_DATA = [
+    {"title": "Dr. No", "year": "1962"},  # keep years as str for CSV comparison
+    {"title": "From Russia with Love", "year": "1963"},
+]
 
 TEST_HTML = """
     <html>

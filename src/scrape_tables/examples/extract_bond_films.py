@@ -145,6 +145,5 @@ def main(arg_list: list[str] | None = None) -> None:
 
 if __name__ == "__main__":  # pragma: no cover  # used by pytest-cov
     print(f"Python Environment: {sys.executable}")
-    # When running as a script, exit on error so callers get non-zero exit codes.
     main()
     sys.exit(0)  # exit with success
