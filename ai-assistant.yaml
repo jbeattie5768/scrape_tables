@@ -1,0 +1,16 @@
+assistant:
+  # Lint command ( Ruff )
+  lint: "uv run ruff check ."
+  # Format command ( Ruff format )
+  format: "uv run ruff format ."
+  # Type-Check Command (MyPy)
+  # Run with the config in pyproject.toml ([tool.mypy] files)
+  type-check: "uv run mypy --strict"
+  # Explicit alternative that checks src and tests (avoids duplicate-module issues)
+  type-check-src-tests: "uv run mypy --strict src tests"
+  # Test command (use uv to provide pytest in the runtime)
+  test: "uv run pytest -q"
+  # Developer requirements file to install dev tools locally
+  dev_requirements: "uv sync"
+  # Note to the assistant about following these commands by default
+  note: "Follow these commands unless explicitly told otherwise in the prompt."

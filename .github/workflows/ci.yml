@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Allow manual runs and a scheduled weekly run to keep pre-commit hooks up-to-date
+  workflow_dispatch: {}
+  #schedule:
+  #  # Weekly on Sunday at 03:00 UTC
+  #  - cron: '0 3 * * 0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.14]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+          pip install pytest-cov coverage
+      - name: Lint
+        run: |
+          ruff check . --line-length 120
+      - name: Run tests with coverage
+        run: |
+          # Run tests with coverage and fail if coverage below 100%
+          pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100 tests
+
+  # Periodic job to run `pre-commit autoupdate` and open a PR if hooks changed
+  autoupdate-precommit:
+    name: Autoupdate pre-commit hooks
+    runs-on: ubuntu-latest
+    # Only run on schedule or manual dispatch
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # fetch full history so the action can create a branch/PR
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install pre-commit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pre-commit
+
+      - name: Run pre-commit autoupdate
+        run: |
+          pre-commit autoupdate --freeze
+
+      - name: Run pre-commit hooks
+        run: |
+          pre-commit run --all-files || true
+
+      - name: Create Pull Request if changes
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: autoupdate pre-commit hooks"
+          branch: "autoupdate/pre-commit-hooks-${{ github.run_id }}"
+          title: "chore: autoupdate pre-commit hooks"
+          body: |
+            This PR was created automatically by the scheduled CI job to update pre-commit hooks
+            and related configurations. Please review and merge if acceptable.
+          labels: autoupdate

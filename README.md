@@ -28,16 +28,6 @@ An example JSON entry:
 
 The script includes a simple CLI:
 
-- `-v` / `--verbose`: increase logging (repeat for more verbosity)
-
-- `-o PATH` / `--output PATH`: output JSON path (default `w:\eon_films.json`)
-
-- `--csv PATH`: optional CSV output path
-
-- `--skip-posters`: skip fetching poster images (faster, no network)
-
-- `--delay`: float seconds to wait between poster page requests (be polite)
-
 - `-u`/`--url`: URL of the HTML page to get
 
 - `-t`/`--table`: caption of the table to extract (case-sensitive)
@@ -46,11 +36,15 @@ The script includes a simple CLI:
 
 - `--delay`: delay in seconds between poster page requests (be polite)
 
-- `-o`/`--json`: output JSON path (default is .\\data\\table_output.json)
+- `-o`/`--json`: output JSON path (default is '/data/table_output.json')
 
 - `--csv`: output CSV path (optional)
 
 - `-v`/`--verbose`: logging verbosity: none=WARNING, -v=INFO, -vv=DEBUG"
+
+Respect rate limits and be polite in scraping other peoples data: avoid being blocked or causing harm.
+
+Ensure you have the ethical right to scrape the data.
 
 #### Example CLI
 
@@ -105,41 +99,106 @@ ______________________________________________________________________
 
 ## Generate James Bond Films
 
-- Using the default URL  
-uv run james-bond -t "Eon films" --skip-posters -o .\\data\\eon_films.json
+- Using the default URL\
+  uv run james-bond -t "Eon films" --skip-posters -o .\\data\\eon_films.json
 
 ## Generate Timeline
 
-- Running from Timeline project root  
-cd W:\\dev\\projects\\timeline  
-uv run python .\\src\\parse_timeline_json.py -j W:\\dev\\projects\\scrape_tables\\data\\eon_films.json -d bond_films -t .\\data\\bond_timeline_template.html -o bond_timeline.html
+- Running from Timeline project root\
+  cd W:\\dev\\projects\\timeline\
+  uv run python .\\src\\parse_timeline_json.py -j W:\\dev\\projects\\scrape_tables\\data\\eon_films.json -d bond_films -t .\\data\\bond_timeline_template.html -o bond_timeline.html
 
 ### Pre-Commit
 
-pre-commit run  
-uv run pre-commit run
+pre-commit run\
+uv run pre-commit run --all-files # no staging required
+uv run pre-commit run # only check staged files
+
+#### Pre-commit Hooks (recommended)
+
+It's recommended to use `pre-commit` to run linters and checks before committing. The repository already includes Ruff hooks (`ruff-check` and `ruff-format`) in `.pre-commit-config.yaml` which provide linting and formatting. To catch type regressions early, add MyPy as a pre-commit hook as well.
+
+What to run locally:
+
+```pwsh
+# Install pre-commit into your environment once
+uv add pre-commit
+
+# Run all hooks against all files (useful after upgrading hooks)
+uv run pre-commit run --all-files
+
+# Run the default pre-commit hooks on staged files (automatic on commit)
+git commit -m "..."
+```
+
+Suggested `.pre-commit-config.yaml` additions:
+
+```yaml
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        args: ["--config-file=pyproject.toml"]
+        files: \.py$
+```
+
+Notes:
+
+- Keep `ruff-format` to automatically format code on commit and `ruff-check` to lint.
+- Avoid enabling `ruff-check --fix` by default unless you want fixes applied automatically on commit; prefer running `ruff check --fix` or CI automation for large-scale fixes.
+- Pin hook `rev` versions in `.pre-commit-config.yaml` to get reproducible behaviour; update them periodically in a single commit and run `pre-commit autoupdate`.
 
 ## Type-Checking
 
 - Pyright via Pylance with settings.json entry:
+
   - `"python.analysis.typeCheckingMode": "strict"`
+
 - MyPy
-  uv run mypy --strict .\\src\
-  uv run mypy --strict .\\tests\
-  uv run python -m mypy --strict .\\src\\scrape_tables\\examples\\extract_bond_films.py\
-  uv run python -m mypy --strict .\\src\\scrape_tables\\scrapers\\scrape_wiki_table.py
+
+  - Running MyPy without passing . allows MyPy to use the files list defined in `[tool.mypy]` in `pyproject.toml`, avoiding walking the repository root in a way that can trigger duplicate discovery.
+
+  uv run mypy
+
+  uv run mypy .\\src
+  uv run mypy .\\tests
+  uv run mypy --strict .\\src\\scrape_tables\\examples\\extract_bond_films.py
+  uv run mypy --strict .\\src\\scrape_tables\\scrapers\\scrape_wiki_table.py
+
+Project layout and type-checking
+
+- **src-layout**: This project uses the `src/` layout where the package sources live under `src/scrape_tables`. Tests import the package as `scrape_tables.*` (not `src.scrape_tables.*`). This avoids duplicate-module discovery by linters/type-checkers and matches common packaging practices.
+
+- **Running MyPy**: Prefer running `uv run mypy --strict` (no `.`) so MyPy uses the `files` and `mypy_path` settings in `pyproject.toml` (which maps `src` as the import root). If you prefer an explicit invocation, run:
+
+```pwsh
+uv run mypy --strict src tests
+```
+
+This explicit command also avoids walking the project root and prevents duplicate module detection.
+
+Robots, terms-of-use and rate-limiting
+
+- When scraping external sites, always check the site's `robots.txt` and terms-of-service to ensure that scraping is permitted for your use case. Respect the site's crawl-delay directives and any API usage rules.
+- Be polite: set a reasonable `--delay` between requests (default is `0.5s`), avoid high request rates, and add exponential backoff for 429/5xx responses when appropriate.
+- If you plan to run the scraper at scale or in CI, consider caching or using site-provided APIs to avoid unnecessary load on third-party servers.
 
 ## PyTest
 
-uv run python -m pytest -rs -v\
-uv run python -m pytest .\\tests\\test_extract_bond_films.py -rs -v\
-uv run python -m pytest .\\tests\\test_extract_wiki_table.py -rs -v
+uv run pytest -rs -v\
+uv run pytest .\\tests\\test_examples\\test_extract_bond_films.py -rs -v
+uv run pytest .\\tests\\test_scrapers\\test_scrape_wiki_table.py -rs -v
 
-_Note_: Do NOT use '--cov=.', you end up covering coverage\
-uv run python -m pytest --cov=src. --cov-report html\
-uv run python -m pytest .\\tests\\test_examples\\test_extract_bond_films.py --cov=src.scrape_tables.examples.extract_bond_films --cov-report html  
-uv run python -m pytest .\\tests\\test_scrapers\\test_scrape_wiki_table.py --cov=src.scrape_tables.scrapers.scrape_wiki_table --cov-report html
+_Note_: Do NOT use '--cov=.', you end up covering coverage
+uv run pytest --cov=src. --cov-report html
+uv run pytest .\\tests\\test_examples\\test_extract_bond_films.py --cov=src.scrape_tables.examples.extract_bond_films --cov-report html\
+uv run pytest .\\tests\\test_scrapers\\test_scrape_wiki_table.py --cov=src.scrape_tables.scrapers.scrape_wiki_table --cov-report html
+uv run pytest --cov=src. --cov-report=term-missing
+
+## Run All Tests Locally
+
+uv run ruff check . ; uv run mypy --strict ; uv run pytest ; uv run pytest --cov=src --cov-report=term-missing ; uv run pre-commit run --all-files
 
 ## Websites
 
-<https://github.com/Sateesh110/Rep_Medium/blob/master/A1_WikiTables_Scraping/A1_WikiTable_WorldPopulation.ipynb>
+<https://github.com/Sateesh110/Rep_Medium/blob/master/A1_WikiTables_Scraping/.ipynb>

@@ -1,12 +1,12 @@
 repos:
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
-    - id: end-of-file-fixer
-    - id: check-toml
-    - id: check-json
-    - id: check-yaml
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-json
+      - id: check-yaml
+      - id: check-added-large-files
 
   - repo: https://github.com/hukkin/mdformat
     rev: 0.7.21
@@ -14,14 +14,31 @@ repos:
       - id: mdformat
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
+    # Ruff version
     rev: v0.14.4
     hooks:
-      # Run the linter.
+      # Linter
       - id: ruff-check
-        # args: [ --fix ]
-      # Run the formatter.
+        # To automatically apply fixes on commit, enable the following arg (opt-in):
+        # args: [--fix]
+      # Run the formatter (applies formatting changes)
       - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
+    hooks:
+      - id: mypy
+        name: mypy (type check)
+        # Use the pyproject.toml mypy config and only run on committed Python files
+        args: ["--config-file=pyproject.toml"]
+        # Install runtime/test deps into the mypy hook environment so imports and stubs
+        # are available when pre-commit runs mypy on all files.
+        additional_dependencies:
+          - beautifulsoup4>=4.14.2
+          - requests>=2.32.5
+          - types-requests>=2.32.4.20250913
+          - pytest>=8.4.2
+          - responses>=0.25.8
 
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.23
