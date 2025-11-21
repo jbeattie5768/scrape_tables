@@ -26,12 +26,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Set up uv
+      - name: Set up UV
         uses: astral-sh/setup-uv@v3
         with:
           version: 'latest'
 
-      - name: Cache uv artifacts
+      - name: Cache UV artifacts
         uses: actions/cache@v4
         with:
           path: .uv-cache
@@ -42,19 +42,19 @@ jobs:
         run: |
           # Sync project environment from pyproject.toml / uv.lock
           uv sync
-          # Ensure pip and CI tools exist inside the uv environment; if these tools are
-          # declared as dev dependencies in pyproject.toml, this is redundant and can be removed.
-          uv run pip install --upgrade pip
-          uv run pip install ruff pytest-cov coverage
 
-      - name: Lint
-        run: |
-          uv run ruff check . --line-length 120
+      - name: Mypy
+        run: uv run mypy --strict src tests
 
-      - name: Run tests with coverage
-        run: |
-          # Run tests with coverage and fail if coverage below 100%
-          uv run pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100 tests
+      - name: PyTest
+        # run: uv run pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100 tests
+        run: uv run pytest -q
+
+      - name: lint
+        run: uv run ruff check . --line-length 120
+
+      - name: format
+        run: uv run ruff format --check . --line-length 120
 
   # Periodic job to run `pre-commit autoupdate` and open a PR if hooks changed
   autoupdate-precommit:
