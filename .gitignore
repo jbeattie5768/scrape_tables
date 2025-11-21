@@ -1,0 +1,38 @@
+# Python #
+##########
+__pycache__/
+*.py[cod]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual Environments
+# .venv contains its own .gitignore
+.venv
+
+# Caches
+# These have their own .gitignore files too
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Visual Studio Code
+#.vscode/
+*.code-workspace
+# PyTest
+.coverage
+htmlcov/
+coverage.xml
+
+# My Temp Files #
+#################
+*.tmp
+deleteme*.*
+temp*.*
+test.txt
+
+# Logs #
+########
+**/logs
+*.log
