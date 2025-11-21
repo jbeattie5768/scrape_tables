@@ -25,19 +25,36 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: 'latest'
+
+      - name: Cache uv artifacts
+        uses: actions/cache@v4
+        with:
+          path: .uv-cache
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml','uv.lock') }}
+          restore-keys: ${{ runner.os }}-uv-
+
+      - name: Install dependencies with uv
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install ruff
-          pip install pytest-cov coverage
+          # Sync project environment from pyproject.toml / uv.lock
+          uv sync
+          # Ensure pip and CI tools exist inside the uv environment; if these tools are
+          # declared as dev dependencies in pyproject.toml, this is redundant and can be removed.
+          uv run pip install --upgrade pip
+          uv run pip install ruff pytest-cov coverage
+
       - name: Lint
         run: |
-          ruff check . --line-length 120
+          uv run ruff check . --line-length 120
+
       - name: Run tests with coverage
         run: |
           # Run tests with coverage and fail if coverage below 100%
-          pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100 tests
+          uv run pytest -q --cov=src --cov-report=term-missing --cov-fail-under=100 tests
 
   # Periodic job to run `pre-commit autoupdate` and open a PR if hooks changed
   autoupdate-precommit:
