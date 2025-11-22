@@ -13,11 +13,21 @@ repos:
     hooks:
       - id: mdformat
 
+  # Run deptry with uv to check for missing and unused dependencies
+  - repo: local
+    hooks:
+      - id: deptry
+        name: deptry
+        entry: uv run deptry .
+        language: system
+        types: [python]
+        always_run: true
+        pass_filenames: false
+
+  # Linter
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version
     rev: v0.14.4
     hooks:
-      # Linter
       - id: ruff-check
         # To automatically apply fixes on commit, enable the following arg (opt-in):
         # args: [--fix]
