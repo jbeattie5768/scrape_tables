@@ -27,6 +27,7 @@ dev = [
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "responses>=0.25.8", # Lib for mocking out requests lib for tests
+    "ruff>=0.14.6",
     "types-requests>=2.32.4.20250913", # stub package
 ]
 

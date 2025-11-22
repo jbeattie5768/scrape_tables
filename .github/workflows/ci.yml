@@ -42,8 +42,6 @@ jobs:
         run: |
           # Sync project environment from pyproject.toml / uv.lock
           uv sync
-          # Add missing packages (need to add the pyproject.toml)
-          uv add ruff
 
       - name: Mypy
         run: uv run mypy --strict src tests
