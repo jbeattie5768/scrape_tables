@@ -192,7 +192,15 @@ build Args="--no-cache":
 alias act:=gact
 # Does:  Runs GitHub Actions locally via 'act'
 gact Args="":
-    act {{Args}}
+    #!{{shebang}}
+    # Check for docker running
+    # $dockerStatus = (Get-Service -Name 'docker' -ErrorAction SilentlyContinue).Status
+    $dockerRunning = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
+    if ($dockerRunning -eq $null) {
+        echo "Docker is not running. Please start Docker and try again."
+    } else {
+        act {{Args}}
+    }
 
 run Args="":
     just run-{{Args}}
