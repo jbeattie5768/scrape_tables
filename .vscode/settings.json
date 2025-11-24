@@ -8,6 +8,7 @@
         "deleteme",
         "deptry",
         "Fukunaga",
+        "gact",
         "Goldfinger",
         "htmlcov",
         "isort",
@@ -17,6 +18,7 @@
         "mdformat",
         "Moonraker",
         "Octopussy",
+        "pdoc",
         "plainrowheaders",
         "psver",
         "pycache",
@@ -29,6 +31,7 @@
         "Spottiswoode",
         "Tamahori",
         "Thunderball",
+        "toplevel",
         "usefixtures",
         "vevent",
         "wikitable"
