@@ -189,10 +189,10 @@ count-files Args="@('./src','./tests')":
 build Args="--no-cache":
     uv build {{Args}}
 
-# Does:  Runs GitHub Actions locally with gh act
-gact:
-    echo "Not yet implemented."
-    # gh act --workflows "$(git rev-parse --show-toplevel)/.github/workflows"
+alias act:=gact
+# Does:  Runs GitHub Actions locally via 'act'
+gact Args="":
+    act {{Args}}
 
 run Args="":
     just run-{{Args}}
@@ -214,6 +214,5 @@ alias serve-docs:=docs-serve
 docs-serve Args="12001":
     echo "Serving docs at http://localhost:{{Args}}/"
     uv run -m http.server {{Args}} -d "docs"
-
     # Start-Sleep -Seconds 1
     # Start-Process "http://localhost:{{Args}}/"
