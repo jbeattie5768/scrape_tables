@@ -31,6 +31,8 @@ jobs:
       #   # Respects the proj pinned version
       #   run: uv python install
 
+      # Cache ref webpage: <https://szeyusim.medium.com/optimizing-uv-in-github-actions-one-global-cache-to-rule-them-all-9c64b42aee7f>
+
       # https://github.com/marketplace/actions/cache
       - name: Restore uv cache
         uses: actions/cache@v4
@@ -43,7 +45,7 @@ jobs:
 
       - name: Install dependencies with uv
         # Don't change uv.lock, all optional and dev dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --locked --all-extras --dev --link-mode=copy
 
       # Run Tests and Linters
       - name: Mypy
