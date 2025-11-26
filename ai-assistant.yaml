@@ -5,12 +5,14 @@ assistant:
   format: "uv run ruff format ."
   # Type-Check Command (MyPy)
   # Run with the config in pyproject.toml ([tool.mypy] files)
-  type-check: "uv run mypy --strict"
+  type-check: "uv run mypy"
   # Explicit alternative that checks src and tests (avoids duplicate-module issues)
   type-check-src-tests: "uv run mypy --strict src tests"
-  # Test command (use uv to provide pytest in the runtime)
+  # Test command (PyTest)
   test: "uv run pytest -q"
-  # Developer requirements file to install dev tools locally
+  # Test Coverage command (PyTest + Coverage)
+  test-coverage: "uv run pytest --cov=src --cov-report=term-missing -q"
+  # Install dev tools locally (UV)
   dev_requirements: "uv sync"
-  # Note to the assistant about following these commands by default
+  # Notes to the assistant
   note: "Follow these commands unless explicitly told otherwise in the prompt."

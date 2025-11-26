@@ -41,16 +41,69 @@ def get_html(url: str) -> BeautifulSoup:
     return soup
 
 
-def map_headers(first_tr: Tag) -> dict[str, int]:
-    """Return a mapping from table field names to column indexes."""
+def map_headers(header_tr: list[Tag] | Tag) -> dict[str, int]:  # noqa: C901 : 11>10
+    """Return a mapping from table field names to column indexes.
+
+    Accepts a single header <tr> or a sequence of header <tr>s.
+    Handles colspan/rowspan by building header "chains" for each final column.
+    """
 
     def clean_header(h: str) -> str:
         """Remove reference brackets from header text."""
         return re.sub(r"\[.*?\]", "", h).strip()
 
-    headers = [th.get_text(" ", strip=True) for th in first_tr.find_all(["th", "td"])]
-    clean_headers = [clean_header(h) for h in headers]
-    header_map: dict[str, int] = {h.lower(): i for i, h in enumerate(clean_headers)}
+    # Normalize input to a list of rows
+    header_rows: list[Tag] = [header_tr] if not isinstance(header_tr, (list, tuple)) else list(header_tr)
+
+    headers: dict[int, list[str]] = {}  # col_index -> list of header parts (top -> bottom)
+    spans_remaining: dict[int, int] = {}  # col_index -> remaining rowspan rows after current
+
+    for row in header_rows:
+        # Track rowspans introduced in this row separately so they are not
+        # decremented until the next header row is processed.
+        spans_to_add: dict[int, int] = {}
+
+        # Find cells for this row
+        cells = row.find_all(["th", "td"])
+        col = 0
+        for cell in cells:
+            # skip columns already occupied by active rowspan(s)
+            while spans_remaining.get(col, 0) > 0:
+                col += 1
+
+            colspan = int(str(cell.get("colspan", "1")))  # casts for type conformity
+            rowspan = int(str(cell.get("rowspan", "1")))  # casts for type conformity
+            text = clean_header(cell.get_text(" ", strip=True))
+            # Place this header text across `colspan` columns starting at `col`
+            for c in range(col, col + colspan):
+                headers.setdefault(c, []).append(text)
+                if rowspan > 1:
+                    # Mark that this column has remaining rowspan rows after this one
+                    spans_to_add[c] = spans_to_add.get(c, 0) + (rowspan - 1)
+            col += colspan
+
+        # After finishing this row, decrement remaining rowspan counters (one row consumed)
+        # from previous rows, then merge in the new spans introduced on this row.
+        new_spans: dict[int, int] = {}
+        for c, rem in spans_remaining.items():
+            decreased = rem - 1
+            if decreased > 0:
+                new_spans[c] = decreased
+        # merge additions
+        for c, add in spans_to_add.items():
+            new_spans[c] = new_spans.get(c, 0) + add
+        spans_remaining = new_spans
+
+    # Convert header parts list into final header name per column
+    clean_names: list[str] = []
+    max_col = max(headers.keys()) if headers else -1
+    for i in range(max_col + 1):
+        parts = [p for p in headers.get(i, []) if p]  # filter empty parts
+        name = " ".join(parts).strip()
+        clean_name = clean_header(name).lower()
+        clean_names.append(clean_name)
+
+    header_map: dict[str, int] = {h: i for i, h in enumerate(clean_names) if h}
     logger.debug("Cleaned and mapped table headers: %s", header_map)
 
     return header_map
@@ -64,15 +117,19 @@ def extract_table_rows(tbl: Tag, hdr_map: dict[str, int]) -> list[dict[str, str]
 
     Approach: The header_map dict 'key:value' is 'names:int_index', with the value
     corresponding to the cell index (cell order) in the row:
+
     ┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐    ┌──────┐
     │key: 0││key: 1││key: 2││key: 3││key: 4│....│key: n│
     └──────┘└──────┘└──────┘└──────┘└──────┘    └──────┘
+
     Each row in extracted_rows is a dict of that rows cell data, with a key corresponding to
     the hdr_map keys:
+
     ┌──────┐┌──────┐┌──────┐┌──────┐┌──────┐    ┌──────┐
     │Key 0 ││Key 1 ││Key 2 ││Key 3 ││Key 4 │....│Key n │
     │Cell 0││Cell 1││Cell 2││Cell 3││Cell 4│    │Cell n│
     └──────┘└──────┘└──────┘└──────┘└──────┘    └──────┘
+
     We take the key from the header_map and use its value to index into the row cells.
     Dicts are ordered as of Python 3.6+, so the order of keys is preserved if we wanted to
     just loop over the header_map keys, incrementally matching each to the corresponding cell.
@@ -156,13 +213,27 @@ def cell_text_and_link(cell: Tag) -> dict[str, str]:
 def parse_table(tbl: Tag) -> list[dict[str, str]]:
     """Parse the table object and return cleaned rows as a list of dicts.
 
-    This function maps headers, extracts table rows.
+    This function maps headers and then extracts table rows.
     """
     first_tr: Tag | None = tbl.find("tr")
     if first_tr is None:
         logger.error("No rows found in table to parse")
         return []
-    header_map = map_headers(first_tr)
+
+    # Collect consecutive header rows starting from first_tr if they are header-only rows.
+    header_rows: list[Tag] = [first_tr]
+    for sibling in first_tr.find_next_siblings("tr"):
+        # Treat next row as a header only if all its cells are <th>
+        # This seems to be a common pattern for multi-row headers
+        sibling_cells = sibling.find_all(["th", "td"])
+        if not sibling_cells:
+            break
+        if all(c.name == "th" for c in sibling_cells):
+            header_rows.append(sibling)
+        else:
+            break
+
+    header_map = map_headers(header_rows if len(header_rows) > 1 else first_tr)
     table_rows = extract_table_rows(tbl, header_map)  # skips non-valid rows
 
     return table_rows

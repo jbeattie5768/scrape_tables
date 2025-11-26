@@ -29,33 +29,22 @@ from scrape_tables.scrapers.scrape_wiki_table import (
 )
 from tests.fixtures import (
     TEST_HTML,
+    TEST_HTML_2_HEADER_ROWS,
+    TEST_HTML_3_HEADER_ROWS,
+    TEST_HTML_EMPTY_ROW,
     TEST_HTML_INFOBOX,
     TEST_HTML_NO_ROWS,
     TEST_HTML_SHORT_ROW,
     TEST_ROWS_DATA,
     TEST_URL,
+    TWO_ROW_EXPECTED_HEADER_MAP,
 )
 
 # CONSTANTS
-LEN_OF_ROWS = 2  # update this if the number of rows in the test-table changes
 VERBOSITY_LEVEL = 2  # = logging.DEBUG
 STATUS_CODE_OK = 200
 DEFAULT_TABLE_CLASS = "wikitable"
 DEFAULT_TABLE_NAME = "Eon films"
-
-
-def test_map_headers() -> None:
-    """Test mapping of table headers to expected keys."""
-    expected_map = {"title": 0, "year": 1, "bond actor": 2, "director": 3}
-    soup = BeautifulSoup(TEST_HTML, "html.parser")
-    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
-    assert tbl is not None
-
-    first_tr = tbl.find("tr")
-    assert first_tr is not None
-
-    header_map = map_headers(first_tr)
-    assert header_map == expected_map
 
 
 def test_extract_table_rows() -> None:
@@ -69,7 +58,7 @@ def test_extract_table_rows() -> None:
     assert header_map is not None
 
     table_rows = extract_table_rows(tbl, header_map)
-    assert len(table_rows) == LEN_OF_ROWS
+    assert len(table_rows) == 2  # noqa: PLR2004 # acceptable for tests
     first_row = table_rows[0]
     assert first_row["title"] == "Dr. No"
     assert first_row["year"] == "1962"
@@ -238,7 +227,7 @@ def test_parse_table() -> None:
     assert tbl is not None
 
     rows = parse_table(tbl)
-    assert len(rows) == LEN_OF_ROWS
+    assert len(rows) == 2  # noqa: PLR2004 # acceptable for tests
     first = rows[0]
     assert first["title"] == "Dr. No"
     assert first["year"] == "1962"
@@ -253,6 +242,23 @@ def test_parse_table_no_rows() -> None:
     assert tbl is not None
     rows = parse_table(tbl)
     assert rows == []
+
+
+# @pytest.mark.skip(reason="Is this necessary?")
+def test_parse_table_no_sibling() -> None:
+    """Cover the `if not sibling_cells` branch in `parse_table`.
+
+    If a sibling <tr> contains no cells, `parse_table` should stop
+    collecting additional header rows and parse the table using only
+    the first header row.
+    """
+    soup = BeautifulSoup(TEST_HTML_EMPTY_ROW, "html.parser")
+    tbl = soup.find("table")
+    assert tbl is not None
+
+    rows = parse_table(tbl)
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Dr. No"
 
 
 def test_find_table_by_caption() -> None:
@@ -341,3 +347,49 @@ def test_get_html() -> None:
     title = soup.find("title")
     assert title is not None
     assert title.text == "James Bond Films"
+
+
+def test_map_headers() -> None:
+    """Test mapping of table headers to expected keys."""
+    expected_map = {"title": 0, "year": 1, "bond actor": 2, "director": 3}
+    soup = BeautifulSoup(TEST_HTML, "html.parser")
+    tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
+    assert tbl is not None
+
+    first_tr = tbl.find("tr")
+    assert first_tr is not None
+
+    header_map = map_headers(first_tr)
+    assert header_map == expected_map
+
+
+def test_map_headers_two_rows() -> None:
+    """Test for a two-row header with colspan/rowspan."""
+    soup = BeautifulSoup(TEST_HTML_2_HEADER_ROWS, "html.parser")
+    tbl = soup.find("table")
+    assert tbl is not None
+
+    header_rows = tbl.find_all("tr")[:2]  # call with the two header rows.
+    header_map = map_headers(header_rows)
+    assert header_map == TWO_ROW_EXPECTED_HEADER_MAP
+
+    rows = parse_table(tbl)  # rows should use header map
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Dr. No"
+    assert rows[0]["box office (millions) actual $"] == "10"
+
+
+def test_map_headers_decrement_branch() -> None:
+    """Ensure the `decreased > 0` branch in `map_headers` is exercised.
+
+    We create a header cell with a larger `rowspan` so that when the
+    rowspan counters are decremented, the decreased value is greater
+    than zero.
+    """
+    soup = BeautifulSoup(TEST_HTML_3_HEADER_ROWS, "html.parser")
+    trs = soup.find_all("tr")[:3]  # first three rows are headers
+    header_map = map_headers(trs)
+
+    assert len(header_map) >= 3  # noqa: PLR2004 # acceptable for tests
+    assert "title" in header_map
+    assert header_map["title"] == 0

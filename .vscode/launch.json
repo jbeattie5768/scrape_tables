@@ -7,7 +7,7 @@
             "name": "Python: Run extract_bond_films - no posters",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/james_bond/extract_bond_films.py",
+            "program": "${workspaceFolder}/src/scrape_tables/examples/extract_bond_films.py",
             "console": "integratedTerminal",
             "args": [
                 "-u",
@@ -27,7 +27,7 @@
             "name": "Python: Run extract_bond_films - with posters",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/james_bond/extract_bond_films.py",
+            "program": "${workspaceFolder}/src/scrape_tables/examples/extract_bond_films.py",
             "console": "integratedTerminal",
             "args": [
                 "-u",

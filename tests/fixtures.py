@@ -7,6 +7,18 @@ TEST_ROWS_DATA = [
     {"title": "From Russia with Love", "year": "1963"},
 ]
 
+TWO_ROW_EXPECTED_HEADER_MAP = {
+    "title": 0,
+    "year": 1,
+    "bond actor": 2,
+    "director": 3,
+    "box office (millions) actual $": 4,
+    "box office (millions) adjusted $ (2024)": 5,
+    "budget (millions) actual $": 6,
+    "budget (millions) adjusted $ (2024)": 7,
+    "ref(s)": 8,
+}
+
 TEST_HTML = """
     <html>
         <head><title>James Bond Films</title></head>
@@ -153,6 +165,72 @@ TEST_HTML_INFOBOX_NO_SRC = """
                     <img >
                 </a>
             </td>
+        </tr>
+    </table>
+    """
+
+TEST_HTML_2_HEADER_ROWS = """
+    <table class="wikitable" style="text-align:center;">
+        <caption>Eon films</caption>
+        <thead>
+            <tr>
+                <th rowspan="2">Title</th>
+                <th rowspan="2">Year</th>
+                <th rowspan="2">Bond actor</th>
+                <th rowspan="2">Director</th>
+                <th colspan="2">Box office (millions)</th>
+                <th colspan="2">Budget (millions)</th>
+                <th rowspan="2">Ref(s)</th>
+            </tr>
+            <tr>
+                <th>Actual $</th>
+                <th>Adjusted $ (2024)</th>
+                <th>Actual $</th>
+                <th>Adjusted $ (2024)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><a href="/wiki/Dr._No_(film)">Dr. No</a></td>
+                <td>1962</td>
+                <td>Sean Connery</td>
+                <td>Terence Young</td>
+                <td>10</td>
+                <td>100</td>
+                <td>1</td>
+                <td>10</td>
+                <td>[1]</td>
+            </tr>
+        </tbody>
+    </table>
+    """
+TEST_HTML_3_HEADER_ROWS = """
+    <table>
+        <tr>
+            <th rowspan="3">Title</th>
+            <th colspan="2">Group</th>
+        </tr>
+        <tr>
+            <th>One</th>
+            <th>Two</th>
+        </tr>
+        <tr>
+            <th>Three</th>
+            <th>Four</th>
+        </tr>
+    </table>
+    """
+
+TEST_HTML_EMPTY_ROW = """
+    <table>
+        <tr>
+            <th>Title</th>
+            <th>Year</th>
+        </tr>
+        <tr></tr>
+        <tr>
+            <td>Dr. No</td>
+            <td>1962</td>
         </tr>
     </table>
     """
