@@ -11,14 +11,17 @@ set shell := ["powershell", "-c"]
 # Set shell for Windows OSs (assumes PowerShell Core):
 set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
 
+set script-interpreter := ['uv', 'run', '--script']
+set unstable
+
 # Ensure this is the first recipe
 [doc("List all available recipes")]
 _list:
-  @just --list --unsorted
+  just --list --unsorted
 
 [doc("List Groups")]
 _groups:
-  @just --groups --unsorted
+  just --groups --unsorted
 
 # ###########################################
 # Environment Management
@@ -103,8 +106,8 @@ clean-venv Args=".venv":
 # ###########################################
 
 [group("QA Checks")]
-[doc("just ruff format mypy test-cov pre-commit")]
-check: ruff format mypy test-coverage pre-commit
+[doc("just ruff format deptry mypy test-cov pre-commit")]
+check: ruff format deptry mypy test-coverage pre-commit
 
 [group("QA Checks")]
 [doc("just ruff format")]
@@ -225,7 +228,7 @@ gact Args="":
 [group("Run Examples")]
 [doc("just run bond")]
 run Args="":
-    @just run-{{Args}}
+    just run-{{Args}}
 
 [group("Run Examples")]
 run-bond Args="--skip-posters":
@@ -261,6 +264,22 @@ docs-serve Args="12001":
 # ###########################################
 # Miscellaneous Tasks
 # ###########################################
+
+alias ver:=project-version
+alias project:=project-version
+alias proj:=project-version
+[group("Misc")]
+[doc("Display Project Version from pyproject.toml")]
+[script]
+project-version:
+  # /// script
+  # requires-python = ">=3.11"
+  # dependencies=["tomli"]
+  # ///
+  import tomli
+  with open("pyproject.toml", "rb") as fid:
+      pyproject = tomli.load(fid)
+      print(f"Project \"{pyproject['project']['name']}\" Version: {pyproject['project']['version']}")
 
 [group("Misc")]
 [doc("Count Py files and lines per file")]
