@@ -7,16 +7,13 @@ TEST_ROWS_DATA = [
     {"title": "From Russia with Love", "year": "1963"},
 ]
 
-TWO_ROW_EXPECTED_HEADER_MAP = {
+# Expected output for TEST_HTML
+EXPECTED_HTML_HEADER = {
     "title": 0,
     "year": 1,
     "bond actor": 2,
     "director": 3,
-    "box office (millions) actual $": 4,
-    "box office (millions) adjusted $ (2024)": 5,
-    "budget (millions) actual $": 6,
-    "budget (millions) adjusted $ (2024)": 7,
-    "ref(s)": 8,
+    "ref(s)": 4,
 }
 
 TEST_HTML = """
@@ -30,18 +27,21 @@ TEST_HTML = """
                         <th>Year</th>
                         <th>Bond actor</th>
                         <th>Director</th>
+                        <th>Ref(s)</th>
                     </tr>
                     <tr>
                         <td><a href="/wiki/Dr._No_(film)">Dr. No</a></td>
                         <td>1962</td>
                         <td>Sean Connery</td>
                         <td>Terence Young</td>
+                        <td>[1][2]</td>
                     </tr>
                     <tr>
                         <td><a href="/wiki/From_Russia_with_Love_(film)">From Russia with Love</a></td>
                         <td>1963</td>
                         <td>Sean Connery</td>
                         <td>Terence Young</td>
+                        <td>[3][4]</td>
                     </tr>
                 </table>
         </body>
@@ -168,6 +168,19 @@ TEST_HTML_INFOBOX_NO_SRC = """
         </tr>
     </table>
     """
+
+# Expected output for TEST_HTML_2_HEADER_ROWS
+TWO_ROW_EXPECTED_HEADER_MAP = {
+    "title": 0,
+    "year": 1,
+    "bond actor": 2,
+    "director": 3,
+    "box office (millions) actual $": 4,
+    "box office (millions) adjusted $ (2024)": 5,
+    "budget (millions) actual $": 6,
+    "budget (millions) adjusted $ (2024)": 7,
+    "ref(s)": 8,
+}
 
 TEST_HTML_2_HEADER_ROWS = """
     <table class="wikitable" style="text-align:center;">

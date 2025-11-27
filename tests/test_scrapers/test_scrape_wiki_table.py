@@ -16,7 +16,9 @@ from bs4 import BeautifulSoup, Tag
 
 # Import as package name from src layout
 from scrape_tables.scrapers.scrape_wiki_table import (
+    build_clean_names,
     cell_text_and_link,
+    clean_cell,
     configure_logging,
     extract_table_rows,
     find_table_by_caption,
@@ -28,6 +30,7 @@ from scrape_tables.scrapers.scrape_wiki_table import (
     save_json,
 )
 from tests.fixtures import (
+    EXPECTED_HTML_HEADER,
     TEST_HTML,
     TEST_HTML_2_HEADER_ROWS,
     TEST_HTML_3_HEADER_ROWS,
@@ -286,11 +289,8 @@ def test_find_table_by_caption_no_table() -> None:
 
 @responses.activate
 def test_request_url_ok() -> None:
-    """Test requesting a URL.
-
-    This uses the responses library to mock the requests.get() functionality.
-    """
-    responses.get(
+    """Test requesting a URL."""
+    responses.get(  # use the responses library to mock requests.get()
         TEST_URL,
         body=TEST_HTML,
         status=STATUS_CODE_OK,
@@ -310,11 +310,8 @@ def test_request_url_ok() -> None:
 
 @responses.activate
 def test_request_url_error() -> None:
-    """Test when requesting a URL returns an error.
-
-    This uses the responses library to mock the requests.get() functionality.
-    """
-    responses.get(
+    """Test when requesting a URL returns an error."""
+    responses.get(  # use the responses library to mock requests.get()
         TEST_URL,
         body=TEST_HTML,
         status=401,
@@ -329,11 +326,8 @@ def test_request_url_error() -> None:
 
 @responses.activate
 def test_get_html() -> None:
-    """Fetch URL and return a BeautifulSoup parsed document.
-
-    This uses the responses library to mock the requests.get() functionality.
-    """
-    responses.get(
+    """Fetch URL and return a BeautifulSoup parsed document."""
+    responses.get(  # use the responses library to mock requests.get()
         TEST_URL,
         body=TEST_HTML,
         status=STATUS_CODE_OK,
@@ -351,7 +345,6 @@ def test_get_html() -> None:
 
 def test_map_headers() -> None:
     """Test mapping of table headers to expected keys."""
-    expected_map = {"title": 0, "year": 1, "bond actor": 2, "director": 3}
     soup = BeautifulSoup(TEST_HTML, "html.parser")
     tbl = find_table_by_caption(soup, DEFAULT_TABLE_NAME)
     assert tbl is not None
@@ -360,7 +353,7 @@ def test_map_headers() -> None:
     assert first_tr is not None
 
     header_map = map_headers(first_tr)
-    assert header_map == expected_map
+    assert header_map == EXPECTED_HTML_HEADER
 
 
 def test_map_headers_two_rows() -> None:
@@ -387,9 +380,45 @@ def test_map_headers_decrement_branch() -> None:
     than zero.
     """
     soup = BeautifulSoup(TEST_HTML_3_HEADER_ROWS, "html.parser")
-    trs = soup.find_all("tr")[:3]  # first three rows are headers
+    trs = soup.find_all("tr")[:3]  # we know first three rows are headers
     header_map = map_headers(trs)
 
     assert len(header_map) >= 3  # noqa: PLR2004 # acceptable for tests
     assert "title" in header_map
     assert header_map["title"] == 0
+
+
+# Not necessary as exercised via other tested functions
+@pytest.mark.parametrize(
+    ("input_header", "expected_cleaned"),
+    [
+        ("", ""),
+        ("Title [1]", "Title"),
+        ("  Year [note]", "Year"),  # leading whitespace
+        ("Director  ", "Director"),  # trailing whitespace
+        ("Box office (millions) actual $ [2]", "Box office (millions) actual $"),
+        ("Budget (millions) adjusted $ (2024) [a]", "Budget (millions) adjusted $ (2024)"),
+    ],
+)
+def test_clean_header_cell(input_header: str, expected_cleaned: str) -> None:
+    """Test cleaning of header cell text."""
+    cleaned = clean_cell(input_header)
+    assert cleaned == expected_cleaned
+
+
+# Not necessary as exercised via other tested functions
+@pytest.mark.parametrize(
+    ("input_header", "expected_cleaned"),
+    [
+        ({0: ["Title", "[1]  "]}, ["title"]),
+        ({1: ["Year", "[Note]"]}, ["year"]),
+        ({2: []}, [""]),
+        ({3: ["Director"]}, ["director"]),
+        ({4: ["Box", "office", "    (millions) actual $", "[2]"]}, ["box office (millions) actual $"]),
+        ({5: ["Budget", "(millions)", "adjusted  ", " $ ", "(2024)", "[a]"]}, ["budget (millions) adjusted $ (2024)"]),
+    ],
+)
+def test_build_clean_names(input_header: dict[int, list[str]], expected_cleaned: list[str]) -> None:
+    """Test building of clean header names."""
+    clean_names = build_clean_names(input_header)
+    assert clean_names == expected_cleaned
